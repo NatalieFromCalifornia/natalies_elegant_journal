@@ -1,16 +1,16 @@
-// Default fallback instructions
-const DEFAULT_SYSTEM_INSTRUCTION = `You are a sophisticated gentlewoman from the late 19th century writing in her private journal.
-Rewrite the modern journal entry provided below in your own voice.
+const DEFAULT_SYSTEM_INSTRUCTION = `You are a refined gentlewoman from the late 19th century writing in her private journal.
+Your task is to rewrite the modern journal entry provided below in your own voice.
 
-Follow these strict guidelines:
-1. Style: Write with the grace, poise, and sophistication of a 19th-century gentlewoman, but keep it clear, readable, and natural. Do NOT use overly verbose, pretentious, or obscure archaic words.
-2. Grounding: Maintain the exact meaning and facts of the original entry. Do not invent details or fluff.
+Follow these strict rules to ensure a natural, elegant, and accurate rewrite:
+1. Tone & Style: Write with the understated grace, poise, and intelligence of a 19th-century gentlewoman. Avoid "purple prose," forced archaic words, and flowery caricatures. Think of the natural, clear, and dignified style of Jane Austen or George Eliot—not an exaggerated melodrama.
+2. No Information Loss: You must preserve all original facts, events, and meanings. Do not invent fluff or omit details.
+3. Modern Terminology: When rewriting modern concepts (such as websites, web applications, hosting, coding, or databases), do not invent awkward or misleading literal translations (like "digital system" for a web app). Instead, describe the core action naturally in standard, elegant English (e.g., "publishing my digital work for the world to see," "creating a ledger," or "refining my manuscript scripts"). Keep the meaning clear and grounded.
 
-Output ONLY the rewritten prose. Do not include any introductions, wrappers, or meta comments.`;
+Output ONLY the rewritten prose. Do not include any introductions, headers, or meta comments.`;
 
 const DEFAULT_SETTINGS = {
   apiKey: "",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.5-flash",
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION
 };
 
@@ -268,7 +268,7 @@ const AIEngine = {
       throw new Error("API Key Missing: Configure your Gemini API Key in your private Firestore settings.");
     }
 
-    const model = settings.model || "gemini-2.5-flash";
+    const model = settings.model || "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
 
     const requestPayload = {
@@ -347,6 +347,26 @@ document.addEventListener("DOMContentLoaded", () => {
   let isTranscribing = false;
   let reminisceUnlocked = false;
 
+  // Premium temporary snackbar helper
+  const UI = {
+    _snackbarTimeout: null,
+    showNotification(message, duration = 3000) {
+      const snackbar = document.getElementById("snackbar");
+      if (!snackbar) return;
+      
+      snackbar.textContent = message;
+      snackbar.classList.add("show");
+      
+      if (this._snackbarTimeout) {
+        clearTimeout(this._snackbarTimeout);
+      }
+      
+      this._snackbarTimeout = setTimeout(() => {
+        snackbar.classList.remove("show");
+      }, duration);
+    }
+  };
+
   // Initialize
   async function init() {
     await DB.initFirebase();
@@ -399,7 +419,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const settings = DB.getSettings();
     settingsSystemInstruction.value = settings.systemInstruction;
     settingsApiKey.value = settings.apiKey || "";
-    settingsModel.value = settings.model || "gemini-2.5-flash";
+    settingsModel.value = settings.model || "gemini-3.5-flash";
   }
 
   // Render list of entries
@@ -512,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const rawContent = newTextarea.value.trim();
     if (!rawContent) {
-      alert("Please record some modern text first.");
+      UI.showNotification("Please record some modern text first.");
       return;
     }
 
@@ -542,7 +562,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderTimeline();
     } catch (e) {
-      alert(e.message || "Transcription failed.");
+      UI.showNotification(e.message || "Transcription failed.");
       isTranscribing = false;
       btnNewDone.disabled = false;
       btnNewCancel.disabled = false;
@@ -607,7 +627,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
       renderTimeline();
     } else {
-      alert("Highlighted text mismatch. Try again.");
+      UI.showNotification("Highlighted text mismatch. Try again.");
     }
 
     window.getSelection().removeAllRanges();
@@ -683,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const activeMode = editState.dataset.mode;
 
       if (!updatedValue) {
-        alert("The reflection cannot be empty. Click Cancel to exit without saving.");
+        UI.showNotification("The reflection cannot be empty.");
         return;
       }
 
@@ -703,7 +723,7 @@ document.addEventListener("DOMContentLoaded", () => {
           loadingState.style.display = "none";
           renderTimeline();
         } catch(err) {
-          alert(err.message || "Rewrite failed.");
+          UI.showNotification(err.message || "Rewrite failed.");
           isTranscribing = false;
           doneBtn.disabled = false;
           cancelBtn.disabled = false;
@@ -780,7 +800,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await window.Firebase.signInWithPopup(auth, provider);
       } catch (err) {
         console.error("Sign-in failed:", err);
-        alert("Google Sign-In failed or was cancelled.");
+        UI.showNotification("Google Sign-In failed or was cancelled.");
       }
     } else {
       // Offline fallback login: simulate lock bypass
@@ -830,7 +850,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await DB.saveCloudSettings(settings);
     
     modalSettings.style.display = "none";
-    alert("Configurations successfully updated.");
+    UI.showNotification("Configurations successfully updated.");
   });
 
   btnResetSettings.addEventListener("click", () => {
