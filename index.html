@@ -96,6 +96,45 @@
     <button id="btn-floating-redact" class="btn-floating-redact" style="display: none;">
       [ REDACT SECRET ]
     </button>
+    <!-- PIN Unlock Modal (Gander -> Reminisce Mode) -->
+    <div id="modal-pin" class="modal-overlay">
+      <div class="modal-card" style="max-width: 360px;">
+        <div class="modal-header">
+          <h2>ENTER PIN</h2>
+          <button id="btn-close-pin" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        <form id="pin-form">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="pin-input">SECRET_ACCESS_PIN</label>
+              <input type="password" id="pin-input" placeholder="••••" required autocomplete="current-password">
+              <span id="pin-error-text" class="help-text" style="color: #B22222; display: none; margin-top: 4px;">Authentication failed. Incorrect PIN.</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="btn-pin-cancel" class="btn-retro">CANCEL</button>
+            <button type="submit" class="btn-retro active">UNLOCK</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Retro Custom Confirmation Modal -->
+    <div id="modal-confirm" class="modal-overlay">
+      <div class="modal-card" style="max-width: 380px;">
+        <div class="modal-header">
+          <h2 id="confirm-title">CONFIRMATION</h2>
+          <button id="btn-close-confirm" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        <div class="modal-body">
+          <p id="confirm-message" style="font-family: var(--font-sans); font-size: 13px; line-height: 1.6; color: var(--ink-color);"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-confirm-cancel" class="btn-retro">CANCEL</button>
+          <button type="button" id="btn-confirm-action" class="btn-retro active">CONFIRM</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Settings Modal -->
     <div id="modal-settings" class="modal-overlay">

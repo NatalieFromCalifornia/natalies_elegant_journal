@@ -4,7 +4,7 @@ Your task is to rewrite the modern journal entry provided below in your own voic
 Follow these strict rules to ensure a natural, elegant, and accurate rewrite:
 1. Tone & Style: Write with the understated grace, poise, and intelligence of a 19th-century gentlewoman. Avoid "purple prose," forced archaic words, and flowery caricatures. Think of the natural, clear, and dignified style of Jane Austen or George Eliot—not an exaggerated melodrama.
 2. No Information Loss: You must preserve all original facts, events, and meanings. Do not invent fluff or omit details.
-3. Modern Terminology: When rewriting modern concepts (such as websites, web applications, hosting, coding, or databases), do not invent awkward or misleading literal translations (like "digital system" for a web app). Instead, describe the core action naturally in standard, elegant English (e.g., "publishing my digital work for the world to see," "creating a ledger," or "refining my manuscript scripts"). Keep the meaning clear and grounded.
+3. Modern Terminology: When rewriting modern concepts (such as websites, web applications, hosting, coding, or databases), do not invent awkward or misleading literal translations (like "digital system" for a web app). Instead, describe the core action naturally in standard, elegant English (e.g., "publishing my digital work for the world to see," "creating a ledger," or "refining my manuscript scripts") or straight up use the correct modern terminology if the meaning is hard to convey. Keep the meaning clear and grounded.
 
 Output ONLY the rewritten prose. Do not include any introductions, headers, or meta comments.`;
 
@@ -364,6 +364,36 @@ document.addEventListener("DOMContentLoaded", () => {
       this._snackbarTimeout = setTimeout(() => {
         snackbar.classList.remove("show");
       }, duration);
+    },
+    
+    showConfirm(message, title = "CONFIRMATION") {
+      return new Promise((resolve) => {
+        const modal = document.getElementById("modal-confirm");
+        const msgEl = document.getElementById("confirm-message");
+        const titleEl = document.getElementById("confirm-title");
+        const cancelBtn = document.getElementById("btn-confirm-cancel");
+        const actionBtn = document.getElementById("btn-confirm-action");
+        const closeBtn = document.getElementById("btn-close-confirm");
+        
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        modal.style.display = "flex";
+        
+        const cleanup = (value) => {
+          modal.style.display = "none";
+          cancelBtn.removeEventListener("click", onCancel);
+          actionBtn.removeEventListener("click", onConfirm);
+          closeBtn.removeEventListener("click", onCancel);
+          resolve(value);
+        };
+        
+        function onCancel() { cleanup(false); }
+        function onConfirm() { cleanup(true); }
+        
+        cancelBtn.addEventListener("click", onCancel);
+        closeBtn.addEventListener("click", onCancel);
+        actionBtn.addEventListener("click", onConfirm);
+      });
     }
   };
 
@@ -652,7 +682,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (deleteBtn && reminisceUnlocked) {
       e.stopPropagation();
-      if (confirm("Discard this reflection forever?")) {
+      document.querySelectorAll(".context-menu").forEach(m => m.classList.remove("active"));
+      const confirmed = await UI.showConfirm("Discard this reflection forever?");
+      if (confirmed) {
         await DB.deleteEntry(id);
         renderTimeline();
       }
@@ -853,8 +885,9 @@ document.addEventListener("DOMContentLoaded", () => {
     UI.showNotification("Configurations successfully updated.");
   });
 
-  btnResetSettings.addEventListener("click", () => {
-    if (confirm("Reset instructions template to default?")) {
+  btnResetSettings.addEventListener("click", async () => {
+    const confirmed = await UI.showConfirm("Reset instructions template to default?");
+    if (confirmed) {
       settingsSystemInstruction.value = DEFAULT_SYSTEM_INSTRUCTION;
     }
   });
