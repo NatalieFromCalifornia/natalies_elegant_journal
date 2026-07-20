@@ -113,7 +113,8 @@ body {
   opacity: 0.7;
 }
 
-.hamburger-icon {
+.hamburger-icon,
+.lock-icon {
   width: 16px;
   height: 16px;
   fill: currentColor;
