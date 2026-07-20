@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Natalie's Journal</title>
+  <!-- Google Fonts for post-modern Jost and elegant serif EB Garamond -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    window.Firebase = { initializeApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged };
+  </script>
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Clean Header -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <span class="header-dot">•</span>
+          <span class="header-title">NATALIE'S JOURNAL</span>
+        </div>
+        <div class="header-right">
+          <!-- Prominent UNLOCK button visible to everyone first -->
+          <button id="btn-unlock" class="btn-retro active">UNLOCK</button>
+
+          <!-- MENU button shown only in Reminisce Mode -->
+          <button id="btn-settings" class="btn-menu" title="Menu" style="display: none;">
+            <span>MENU</span>
+            <svg class="hamburger-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Timeline Container -->
+    <main class="flow-container">
+      <div class="timeline-container">
+        <!-- The dynamic timeline feed -->
+        <div id="timeline-feed" class="timeline-feed">
+          <!-- Entries loaded dynamically in row format -->
+        </div>
+
+        <!-- Inline New Entry Row (Hidden by default, shown on click of bottom button) -->
+        <div id="new-entry-row" class="timeline-row editing-row" style="display: none;">
+          <div class="timeline-date">
+            <span id="new-date-day" class="date-day">-- --</span>
+            <span id="new-date-year" class="date-year">----</span>
+          </div>
+          <div class="timeline-node-container">
+            <div class="timeline-node dashed-node"></div>
+          </div>
+          <div class="timeline-content">
+            <div class="edit-card">
+              <div class="edit-label">EDIT</div>
+              <textarea id="new-textarea" class="edit-textarea" placeholder="raw text while editing"></textarea>
+              
+              <!-- Loader inside card (shown when transcribing) -->
+              <div id="new-card-loading" class="card-loading" style="display: none;">
+                <span class="loading-text">Transcribing entry...</span>
+                <div class="loading-bar"></div>
+              </div>
+
+              <div class="edit-actions">
+                <button id="btn-new-cancel" class="btn-text">CANCEL</button>
+                <button id="btn-new-done" class="btn-pill">DONE</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Welcome State if Empty -->
+        <div id="welcome-state" class="welcome-card" style="display: none;">
+          <h2>NO ENTRIES FOUND</h2>
+          <p>Unlock the journal to scribe your first reflection.</p>
+        </div>
+
+        <!-- Bottom Pill Record Button -->
+        <div class="feed-footer">
+          <button id="btn-record-new" class="btn-record-pill">
+            <svg class="plus-icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            RECORD NEW ENTRY
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Floating Context Redact Button (Appears near Victorian text selections in view mode) -->
+    <button id="btn-floating-redact" class="btn-floating-redact" style="display: none;">
+      [ REDACT SECRET ]
+    </button>
+
+    <!-- Settings Modal -->
+    <div id="modal-settings" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>SYSTEM_CONFIG</h2>
+          <button id="btn-close-settings" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        <form id="settings-form">
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="settings-system-instruction">PERSONA PROMPT</label>
+              <textarea id="settings-system-instruction" class="settings-textarea" rows="8"></textarea>
+              <span class="help-text">The system rules governing the Victorian rewrite script. All other config keys are stored privately on Firebase.</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="btn-reset-settings" class="btn-retro">RESET</button>
+            <button type="submit" class="btn-retro active">SAVE</button>
+            <button type="button" id="btn-sign-out" class="btn-retro" style="color: #B22222;">LOG OUT</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

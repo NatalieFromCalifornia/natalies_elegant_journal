@@ -1,0 +1,748 @@
+/* Minimalist Parchment Timeline Design System */
+:root {
+  /* Colors */
+  --bg-color: #F8F5EE;       /* Warm Parchment Cream */
+  --ink-color: #2E2B2A;      /* Dark Charcoal/Ink */
+  --ink-muted: #8E8A85;     /* Muted Grey */
+  --accent-color: #FFAA00;   /* Muted caution orange */
+  
+  /* Fonts */
+  --font-sans: "Jost", sans-serif;
+  --font-serif: "EB Garamond", serif;
+  
+  /* Radii */
+  --radius-card: 12px;
+  --radius-pill: 100px;
+}
+
+/* Base resets & styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-color);
+  color: var(--ink-color);
+  height: 100vh;
+  overflow: hidden;
+  line-height: 1.6;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(46, 43, 42, 0.2);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(46, 43, 42, 0.4);
+}
+
+/* App Layout Wrapper */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Minimalist Top Header */
+.app-header {
+  height: 64px;
+  border-bottom: 1px solid rgba(46, 43, 42, 0.08);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--bg-color);
+  z-index: 10;
+  width: 100%;
+}
+
+.header-inner {
+  max-width: 800px;
+  width: 100%;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-dot {
+  font-size: 16px;
+}
+
+.header-title {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+}
+
+.btn-menu {
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  color: var(--ink-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.btn-menu:hover {
+  opacity: 0.7;
+}
+
+.hamburger-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Main Timeline Flow scroll area */
+.flow-container {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 40px 20px 140px;
+}
+
+.timeline-container {
+  position: relative;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Timeline Line - REMOVED (drawn via node pseudo-elements) */
+
+.timeline-feed {
+  position: relative;
+  z-index: 2;
+}
+
+/* Three-column Timeline Row */
+.timeline-row {
+  display: grid;
+  grid-template-columns: 80px 40px 1fr;
+  margin-bottom: 32px;
+}
+
+/* Date Column */
+.timeline-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding-top: 18px;
+  font-family: var(--font-sans);
+  text-align: right;
+}
+
+.date-day {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-color);
+  line-height: 1.2;
+}
+
+.date-year {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--ink-color);
+}
+
+/* Node Dot Column */
+.timeline-node-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 24px; /* Aligns dot perfectly with first line of text/timestamp */
+  position: relative;
+}
+
+.timeline-node-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: -32px; /* Bridges the 32px margin-bottom gap between rows */
+  width: 1px;
+  background-color: rgba(46, 43, 42, 0.1);
+  z-index: 1;
+}
+
+/* Default: last dynamic row's line terminates next to the bottom of the entry (next to edited footer text) */
+.timeline-feed .timeline-row:last-child .timeline-node-container::after {
+  bottom: 0;
+}
+
+/* If the new-entry-row is active (not hidden), extend the last dynamic row's line fully to bridge the gap */
+.timeline-container:has(#new-entry-row:not([style*="display: none"])) .timeline-feed .timeline-row:last-child .timeline-node-container::after {
+  bottom: -32px;
+}
+
+/* The new-entry-row itself has its line terminate next to the bottom of its card */
+#new-entry-row .timeline-node-container::after {
+  bottom: 0;
+}
+
+/* Saved entries hollow circle node */
+.timeline-node {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-color);
+  background-color: var(--bg-color);
+  z-index: 5;
+  transition: all 0.2s ease;
+}
+
+.timeline-row:hover .timeline-node {
+  background-color: var(--ink-color);
+}
+
+/* Editing state dashed node */
+.dashed-node {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--ink-color);
+  background-color: var(--bg-color);
+  z-index: 5;
+  animation: rotate 12s infinite linear;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Entry content column */
+.timeline-content {
+  padding-top: 14px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(46, 43, 42, 0.08); /* Divider line between cards */
+  position: relative;
+}
+
+/* Last content item should have no bottom border */
+.timeline-feed .timeline-row:last-child .timeline-content {
+  border-bottom: none;
+}
+
+/* Entry Card Content Details */
+.entry-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.entry-timestamp {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+/* More/Context actions icon button */
+.btn-more {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.btn-more:hover {
+  color: var(--ink-color);
+}
+
+/* Dropdown Context menu */
+.context-menu {
+  display: none;
+  position: absolute;
+  top: 24px;
+  right: 0;
+  background-color: var(--bg-color);
+  border: 1px solid rgba(46, 43, 42, 0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  z-index: 20;
+  min-width: 100px;
+}
+
+.context-menu.active {
+  display: block;
+}
+
+.context-menu-item {
+  background: transparent;
+  border: none;
+  width: 100%;
+  padding: 8px 16px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-align: left;
+  color: #B22222; /* Red delete text */
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(178, 34, 34, 0.05);
+}
+
+/* Card Body Prose (Elegant serif text) */
+.entry-body {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--ink-color);
+  line-height: 1.75;
+  text-align: justify;
+  margin-bottom: 16px;
+}
+
+/* Secret redaction marker styling */
+.redacted-text {
+  background-color: var(--ink-color);
+  color: var(--ink-color);
+  padding: 0 4px;
+  border-radius: 2px;
+  display: inline-block;
+  line-height: 1.25; /* Increased height to fully cover descenders like g and y */
+  vertical-align: middle;
+  cursor: help;
+  user-select: none;
+  transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.redacted-text:hover {
+  background-color: var(--bg-color);
+  box-shadow: inset 0 0 0 1px var(--ink-color);
+  color: var(--ink-color);
+  user-select: text;
+}
+
+/* Card Footer Timestamp */
+.entry-card-footer {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+/* Dash-bordered active edit container card */
+.edit-card {
+  border: 1px dashed rgba(46, 43, 42, 0.25);
+  border-radius: 12px;
+  padding: 24px;
+  background-color: var(--bg-color);
+}
+
+.edit-label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
+  margin-bottom: 8px;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-height: 5em; /* 3 text lines minimum height */
+  height: auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--ink-color);
+  resize: none;
+  line-height: 1.6;
+  overflow-y: hidden;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Loader Inside Card */
+.card-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 0 8px;
+}
+
+.loading-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.loading-bar {
+  width: 100%;
+  height: 2px;
+  background-color: rgba(46, 43, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  background-color: var(--ink-color);
+  animation: slide 1.4s infinite linear;
+}
+
+@keyframes slide {
+  from { left: -40%; }
+  to { left: 100%; }
+}
+
+/* Bottom feed footer container */
+.feed-footer {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+/* Bottom record pill button */
+.btn-record-pill {
+  background: transparent;
+  border: 1px solid rgba(46, 43, 42, 0.2);
+  border-radius: var(--radius-pill);
+  padding: 12px 36px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  color: var(--ink-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  outline: none;
+}
+
+.btn-record-pill:hover {
+  background-color: rgba(46, 43, 42, 0.04);
+  border-color: var(--ink-color);
+}
+
+.plus-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* Floating redact helper button (View mode victorian only) */
+.btn-floating-redact {
+  position: absolute;
+  background-color: var(--ink-color);
+  color: var(--bg-color);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 6px 14px;
+  cursor: pointer;
+  z-index: 9999;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.btn-floating-redact:hover {
+  background-color: var(--accent-color);
+  color: var(--ink-color);
+}
+
+/* Settings Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(46, 43, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+}
+
+.modal-card {
+  background-color: var(--bg-color);
+  border: 1px solid rgba(46, 43, 42, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(46, 43, 42, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(46, 43, 42, 0.08);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Config/Settings Forms */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+}
+
+.form-group input, 
+.form-group select, 
+.form-group textarea {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: var(--bg-color);
+  border: 1px solid rgba(46, 43, 42, 0.12);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink-color);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus, 
+.form-group select:focus, 
+.form-group textarea:focus {
+  border-color: var(--ink-color);
+}
+
+.settings-textarea {
+  resize: vertical;
+}
+
+.help-text {
+  font-size: 10px;
+  color: var(--ink-muted);
+}
+
+/* Settings buttons */
+.btn-retro {
+  background-color: transparent;
+  border: 1px solid rgba(46, 43, 42, 0.2);
+  color: var(--ink-color);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+}
+
+.btn-retro:hover {
+  background-color: rgba(46, 43, 42, 0.04);
+}
+
+.btn-retro.active {
+  background-color: var(--ink-color);
+  color: var(--bg-color);
+  border-color: var(--ink-color);
+}
+
+.btn-close-retro {
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-color);
+  cursor: pointer;
+}
+
+/* Inline Edit Card buttons */
+.btn-text {
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 6px 12px;
+  transition: color 0.2s ease;
+}
+
+.btn-text:hover {
+  color: var(--ink-color);
+}
+
+.btn-pill {
+  background-color: var(--ink-color);
+  color: var(--bg-color);
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 8px 24px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.btn-pill:hover {
+  opacity: 0.9;
+}
+
+.btn-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Welcome Empty View */
+.welcome-card {
+  text-align: center;
+  padding: 60px 40px;
+}
+
+.welcome-card h2 {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.welcome-card p {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+/* Gander Mode (Visitor View-Only Restrictions) */
+body.gander-mode .feed-footer {
+  display: none !important;
+}
+
+body.gander-mode .btn-more {
+  display: none !important;
+}
+
+body.gander-mode .redacted-text {
+  cursor: default !important;
+  user-select: none !important;
+}
+
+body.gander-mode .redacted-text:hover {
+  background-color: var(--ink-color) !important;
+  color: var(--ink-color) !important;
+  box-shadow: none !important;
+  user-select: none !important;
+}
+
+/* Edit Mode Toggle (Raw vs Rewrite) */
+.edit-mode-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(46, 43, 42, 0.08);
+  padding-bottom: 8px;
+}
+
+.btn-toggle-edit {
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+}
+
+.btn-toggle-edit:hover {
+  background-color: rgba(46, 43, 42, 0.04);
+}
+
+.btn-toggle-edit.active {
+  background-color: var(--ink-color);
+  color: var(--bg-color);
+}
+
