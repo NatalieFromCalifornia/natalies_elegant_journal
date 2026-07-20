@@ -23,7 +23,6 @@
     <header class="app-header">
       <div class="header-inner">
         <div class="header-left">
-          <span class="header-dot">•</span>
           <span class="header-title">NATALIE'S JOURNAL</span>
         </div>
         <div class="header-right">
@@ -60,8 +59,8 @@
           </div>
           <div class="timeline-content">
             <div class="edit-card">
-              <div class="edit-label">EDIT</div>
-              <textarea id="new-textarea" class="edit-textarea" placeholder="raw text while editing"></textarea>
+              <div class="edit-label">JOURNAL ENTRY</div>
+              <textarea id="new-textarea" class="edit-textarea" placeholder="enter your recollections"></textarea>
               
               <!-- Loader inside card (shown when transcribing) -->
               <div id="new-card-loading" class="card-loading" style="display: none;">
@@ -101,18 +100,33 @@
     <!-- Settings Modal -->
     <div id="modal-settings" class="modal-overlay">
       <div class="modal-card">
-        <div class="modal-header">
-          <h2>SYSTEM_CONFIG</h2>
-          <button id="btn-close-settings" class="btn-close-retro" title="Close">[ X ]</button>
-        </div>
-        <form id="settings-form">
-          <div class="modal-body">
-            <div class="form-group">
-              <label for="settings-system-instruction">PERSONA PROMPT</label>
-              <textarea id="settings-system-instruction" class="settings-textarea" rows="8"></textarea>
-              <span class="help-text">The system rules governing the Victorian rewrite script. All other config keys are stored privately on Firebase.</span>
-            </div>
+          <div class="modal-header">
+            <h2>SETTING</h2>
+            <button id="btn-close-settings" class="btn-close-retro" title="Close">[ X ]</button>
           </div>
+          <form id="settings-form">
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+              <div class="form-group">
+                <label for="settings-api-key">GEMINI_API_KEY</label>
+                <input type="password" id="settings-api-key" placeholder="AIzaSy..." required autocomplete="off">
+                <span class="help-text">Saved privately in your Cloud database.</span>
+              </div>
+
+              <div class="form-group">
+                <label for="settings-model">MODEL_SELECT</label>
+                <select id="settings-model">
+                  <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended)</option>
+                  <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="settings-system-instruction">PERSONA PROMPT</label>
+                <textarea id="settings-system-instruction" class="settings-textarea" rows="6"></textarea>
+                <span class="help-text">The system rules governing the Victorian rewrite script.</span>
+              </div>
+            </div>
           <div class="modal-footer">
             <button id="btn-reset-settings" class="btn-retro">RESET</button>
             <button type="submit" class="btn-retro active">SAVE</button>

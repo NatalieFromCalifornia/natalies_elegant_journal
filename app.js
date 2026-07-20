@@ -9,6 +9,8 @@ Follow these strict guidelines:
 Output ONLY the rewritten prose. Do not include any introductions, wrappers, or meta comments.`;
 
 const DEFAULT_SETTINGS = {
+  apiKey: "",
+  model: "gemini-2.5-flash",
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION
 };
 
@@ -334,6 +336,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const modalSettings = document.getElementById("modal-settings");
   const btnCloseSettings = document.getElementById("btn-close-settings");
   const settingsForm = document.getElementById("settings-form");
+  const settingsApiKey = document.getElementById("settings-api-key");
+  const settingsModel = document.getElementById("settings-model");
   const settingsSystemInstruction = document.getElementById("settings-system-instruction");
   const btnResetSettings = document.getElementById("btn-reset-settings");
   const btnSignOut = document.getElementById("btn-sign-out");
@@ -394,6 +398,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadSettingsIntoForm() {
     const settings = DB.getSettings();
     settingsSystemInstruction.value = settings.systemInstruction;
+    settingsApiKey.value = settings.apiKey || "";
+    settingsModel.value = settings.model || "gemini-2.5-flash";
   }
 
   // Render list of entries
@@ -450,8 +456,8 @@ document.addEventListener("DOMContentLoaded", () => {
                   <button type="button" class="btn-toggle-edit active" data-mode="raw">RAW TEXT</button>
                   <button type="button" class="btn-toggle-edit" data-mode="rewrite">REWRITE</button>
                 </div>
-                <div class="edit-label">EDIT</div>
-                <textarea class="edit-textarea card-edit-textarea" placeholder="raw text while editing">${editRawVal}</textarea>
+                <div class="edit-label">JOURNAL ENTRY</div>
+                <textarea class="edit-textarea card-edit-textarea" placeholder="enter your recollections">${editRawVal}</textarea>
                 
                 <!-- Card Inner Loader -->
                 <div class="card-loading card-edit-loading" style="display: none;">
@@ -656,10 +662,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (clickedMode === "rewrite") {
         editState.dataset.tempRaw = textarea.value;
         textarea.value = entry.victorianContent;
-        editState.querySelector(".edit-label").textContent = "EDIT REWRITE";
+        editState.querySelector(".edit-label").textContent = "JOURNAL REWRITE";
       } else {
         textarea.value = editState.dataset.tempRaw || entry.rawContent;
-        editState.querySelector(".edit-label").textContent = "EDIT";
+        editState.querySelector(".edit-label").textContent = "JOURNAL ENTRY";
       }
 
       editState.dataset.mode = clickedMode;
@@ -744,7 +750,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editState.dataset.mode = "raw";
     editState.querySelectorAll(".btn-toggle-edit").forEach(btn => btn.classList.remove("active"));
     editState.querySelector('.btn-toggle-edit[data-mode="raw"]').classList.add("active");
-    editState.querySelector(".edit-label").textContent = "EDIT";
+    editState.querySelector(".edit-label").textContent = "JOURNAL ENTRY";
     textarea.value = entry ? entry.rawContent : "";
     delete editState.dataset.tempRaw;
 
@@ -817,6 +823,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const settings = DB.getSettings();
     
     settings.systemInstruction = settingsSystemInstruction.value.trim();
+    settings.apiKey = settingsApiKey.value.trim();
+    settings.model = settingsModel.value;
 
     DB.saveSettings(settings);
     await DB.saveCloudSettings(settings);
