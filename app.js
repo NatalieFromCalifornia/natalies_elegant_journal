@@ -490,6 +490,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="entry-timestamp">${formattedTime}</span>
                 <button class="btn-more">...</button>
                 <div class="context-menu">
+                  <button class="context-menu-item btn-card-edit-trigger" data-id="${entry.id}">Edit</button>
                   <button class="context-menu-item btn-card-delete" data-id="${entry.id}">Discard</button>
                 </div>
               </div>
@@ -675,6 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const loadingState = row.querySelector(".card-edit-loading");
 
     const deleteBtn = e.target.closest(".btn-card-delete");
+    const editTriggerBtn = e.target.closest(".btn-card-edit-trigger");
     const cancelBtn = e.target.closest(".btn-card-edit-cancel");
     const doneBtn = e.target.closest(".btn-card-edit-done");
     const moreBtn = e.target.closest(".btn-more");
@@ -688,6 +690,10 @@ document.addEventListener("DOMContentLoaded", () => {
         await DB.deleteEntry(id);
         renderTimeline();
       }
+    } else if (editTriggerBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      document.querySelectorAll(".context-menu").forEach(m => m.classList.remove("active"));
+      openEditor(row);
     } else if (cancelBtn) {
       e.stopPropagation();
       editState.style.display = "none";
@@ -777,16 +783,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Double click existing entry card to edit it
-  timelineFeed.addEventListener("dblclick", (e) => {
-    if (!reminisceUnlocked) return;
-
-    const row = e.target.closest(".timeline-row");
-    if (!row) return;
-
-    if (e.target.closest(".entry-card-header") || e.target.closest(".entry-card-footer") ||
-        row.querySelector(".card-edit-state").style.display === "block") return;
-
+  // Helper to open existing entry card in edit mode
+  function openEditor(row) {
     const viewState = row.querySelector(".card-view-state");
     const editState = row.querySelector(".card-edit-state");
     const textarea = editState.querySelector(".card-edit-textarea");
@@ -811,6 +809,19 @@ document.addEventListener("DOMContentLoaded", () => {
     textarea.focus();
 
     initTextareaAutoResize(textarea);
+  }
+
+  // Double click existing entry card to edit it
+  timelineFeed.addEventListener("dblclick", (e) => {
+    if (!reminisceUnlocked) return;
+
+    const row = e.target.closest(".timeline-row");
+    if (!row) return;
+
+    if (e.target.closest(".entry-card-header") || e.target.closest(".entry-card-footer") ||
+        row.querySelector(".card-edit-state").style.display === "block") return;
+
+    openEditor(row);
   });
 
   // Highlight selection listeners
