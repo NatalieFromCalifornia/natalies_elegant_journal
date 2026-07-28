@@ -31,6 +31,11 @@
             <svg class="lock-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
           </button>
 
+          <!-- Small LOGOUT button shown in Reminisce Mode -->
+          <button id="btn-header-logout" class="btn-menu" title="Log Out" style="display: none;">
+            <span>LOGOUT</span>
+          </button>
+
           <!-- MENU button shown only in Reminisce Mode -->
           <button id="btn-settings" class="btn-menu" title="Menu" style="display: none;">
             <span>MENU</span>
@@ -69,6 +74,7 @@
               </div>
 
               <div class="edit-actions">
+                <button id="btn-new-image" type="button" class="btn-text btn-image-upload" title="Attach or paste image">🖼️ IMAGE</button>
                 <button id="btn-new-cancel" class="btn-text">CANCEL</button>
                 <button id="btn-new-done" class="btn-pill">DONE</button>
               </div>
@@ -178,6 +184,9 @@
 
   <!-- Less intrusive temporary snackbar notification -->
   <div id="snackbar" class="snackbar"></div>
+
+  <!-- Hidden global file input for image uploads -->
+  <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
   <script src="app.js"></script>
 </body>

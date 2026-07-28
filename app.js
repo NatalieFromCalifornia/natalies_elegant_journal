@@ -216,9 +216,24 @@ const Renderer = {
   },
   render(text) {
     if (!text) return "";
-    const escaped = this.escapeHtml(text);
-    return escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" title="Hover to reveal secret">$1</span>')
-                  .replace(/\n/g, '<br>');
+
+    // Extract image markdown tags before escaping HTML
+    const images = [];
+    let cleanText = text.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
+      images.push(dataUrl);
+      return `___IMG_PLACEHOLDER_${images.length - 1}___`;
+    });
+
+    let escaped = this.escapeHtml(cleanText);
+    escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" title="Hover to reveal secret">$1</span>')
+                     .replace(/\n/g, '<br>');
+
+    // Restore images as rounded journal-entry-img elements
+    images.forEach((dataUrl, idx) => {
+      escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, `<img class="journal-entry-img" src="${dataUrl}" alt="Journal entry attachment" />`);
+    });
+
+    return escaped;
   },
   getDateParts(dateString) {
     const date = new Date(dateString);
@@ -260,6 +275,57 @@ function initTextareaAutoResize(textarea) {
   setTimeout(adjustHeight, 0);
 }
 
+// Image Upload & Compression Helper
+function compressImage(file, maxDimension = 800, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function insertImageTagAtCursor(textarea, dataUrl) {
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const text = textarea.value;
+  const imageTag = `\n\n![image](${dataUrl})\n\n`;
+
+  textarea.value = text.substring(0, start) + imageTag + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + imageTag.length;
+  textarea.focus();
+  
+  textarea.style.height = "auto";
+  textarea.style.height = textarea.scrollHeight + "px";
+}
+
 // AI Engine
 const AIEngine = {
   async rewrite(rawContent) {
@@ -268,6 +334,14 @@ const AIEngine = {
       throw new Error("API Key Missing: Configure your Gemini API Key in your private Firestore settings.");
     }
 
+    // Protect image attachments by replacing Base64 tags with tokens before API call
+    const imageTokens = [];
+    const sanitizedText = rawContent.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
+      const token = `[[JOURNAL_IMG_${imageTokens.length}]]`;
+      imageTokens.push({ token, dataUrl, fullMatch: match });
+      return `\n${token}\n`;
+    });
+
     const model = settings.model || "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
 
@@ -275,7 +349,7 @@ const AIEngine = {
       contents: [
         {
           parts: [
-            { text: rawContent }
+            { text: sanitizedText }
           ]
         }
       ],
@@ -301,13 +375,25 @@ const AIEngine = {
     }
 
     const responseData = await response.json();
-    const rawTextResponse = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+    let rawTextResponse = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!rawTextResponse) {
       throw new Error("Empty response received from Gemini.");
     }
 
-    return rawTextResponse.trim();
+    let rewritten = rawTextResponse.trim();
+
+    // Substitute image tokens back to their original position in the Victorian response
+    imageTokens.forEach(({ token, fullMatch }) => {
+      if (rewritten.includes(token)) {
+        rewritten = rewritten.replace(token, fullMatch);
+      } else {
+        // Fallback safety: append image if token was omitted by model
+        rewritten += `\n\n${fullMatch}`;
+      }
+    });
+
+    return rewritten;
   }
 };
 
@@ -431,16 +517,26 @@ document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
   }
 
+  // Elements
+  const btnUnlock = document.getElementById("btn-unlock");
+  const btnSettings = document.getElementById("btn-settings");
+  const btnHeaderLogout = document.getElementById("btn-header-logout");
+  const btnNewImage = document.getElementById("btn-new-image");
+  const globalImageInput = document.getElementById("global-image-input");
+  let activeEditingTextarea = null;
+
   // Toggle UI layouts based on modes
   function applyModeUI() {
     if (reminisceUnlocked) {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
       btnSettings.style.display = "flex";
+      if (btnHeaderLogout) btnHeaderLogout.style.display = "flex";
     } else {
       document.body.classList.add("gander-mode");
       btnUnlock.style.display = "flex";
       btnSettings.style.display = "none";
+      if (btnHeaderLogout) btnHeaderLogout.style.display = "none";
     }
   }
 
@@ -517,6 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
 
                 <div class="edit-actions">
+                  <button type="button" class="btn-text btn-card-image-upload" data-id="${entry.id}">🖼️ IMAGE</button>
                   <button class="btn-text btn-card-edit-cancel" data-id="${entry.id}">CANCEL</button>
                   <button class="btn-pill btn-card-edit-done active" data-id="${entry.id}">DONE</button>
                 </div>
@@ -601,30 +698,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Text selection listener for Victorian view-mode redactions
+  // Text selection listener for Victorian view-mode redactions (Mobile + Desktop touch support)
   function handleTextSelection(e) {
     if (!reminisceUnlocked) return;
 
     const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
+    const selectedText = selection ? selection.toString().trim() : "";
 
     if (!selectedText) {
       hideFloatingRedact();
       return;
     }
 
-    const victorianBody = e.target.closest(".card-body-text.victorian");
+    const anchorNode = selection.anchorNode;
+    const parentEl = anchorNode ? (anchorNode.nodeType === 3 ? anchorNode.parentElement : anchorNode) : null;
+    const victorianBody = parentEl ? parentEl.closest(".card-body-text.victorian") : null;
     if (!victorianBody) {
       hideFloatingRedact();
       return;
     }
 
-    const row = e.target.closest(".timeline-row");
+    const row = parentEl.closest(".timeline-row");
     if (!row) {
       hideFloatingRedact();
       return;
     }
 
+    if (selection.rangeCount === 0) return;
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
 
@@ -633,8 +733,13 @@ document.addEventListener("DOMContentLoaded", () => {
       text: selectedText
     };
 
-    btnFloatingRedact.style.left = `${rect.left + window.scrollX + (rect.width / 2) - 60}px`;
-    btnFloatingRedact.style.top = `${rect.top + window.scrollY - 35}px`;
+    const btnWidth = 140;
+    let leftPos = rect.left + window.scrollX + (rect.width / 2) - (btnWidth / 2);
+    // Clamp within screen boundaries so it doesn't overflow on mobile
+    leftPos = Math.max(10, Math.min(leftPos, window.innerWidth - btnWidth - 10));
+
+    btnFloatingRedact.style.left = `${leftPos}px`;
+    btnFloatingRedact.style.top = `${Math.max(10, rect.top + window.scrollY - 40)}px`;
     btnFloatingRedact.style.display = "block";
   }
 
@@ -643,10 +748,12 @@ document.addEventListener("DOMContentLoaded", () => {
     activeSelection = null;
   }
 
-  // Redact mousedown
-  btnFloatingRedact.addEventListener("mousedown", async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Redact action handler
+  const performRedaction = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     if (!activeSelection || !reminisceUnlocked) return;
 
@@ -657,13 +764,17 @@ document.addEventListener("DOMContentLoaded", () => {
       entry.victorianContent = entry.victorianContent.replace(text, `||${text}||`);
       await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
       renderTimeline();
+      UI.showNotification("Secret redacted.");
     } else {
       UI.showNotification("Highlighted text mismatch. Try again.");
     }
 
     window.getSelection().removeAllRanges();
     hideFloatingRedact();
-  });
+  };
+
+  btnFloatingRedact.addEventListener("mousedown", performRedaction);
+  btnFloatingRedact.addEventListener("touchstart", performRedaction);
 
   // Timeline events delegation (clicks)
   timelineFeed.addEventListener("click", async (e) => {
@@ -824,9 +935,92 @@ document.addEventListener("DOMContentLoaded", () => {
     openEditor(row);
   });
 
-  // Highlight selection listeners
+  // Highlight selection listeners (Desktop + Mobile touch support)
   document.addEventListener("mouseup", handleTextSelection);
   document.addEventListener("keyup", handleTextSelection);
+  document.addEventListener("touchend", handleTextSelection);
+  document.addEventListener("selectionchange", handleTextSelection);
+
+  // Header logout button click handler
+  if (btnHeaderLogout) {
+    btnHeaderLogout.addEventListener("click", async () => {
+      if (auth) {
+        await window.Firebase.signOut(auth);
+      } else {
+        reminisceUnlocked = false;
+        sessionStorage.removeItem("ej_reminisce_unlocked");
+        applyModeUI();
+        renderTimeline();
+      }
+      UI.showNotification("Logged out of journal.");
+    });
+  }
+
+  // Handle image upload button click for new composer card
+  if (btnNewImage) {
+    btnNewImage.addEventListener("click", () => {
+      activeEditingTextarea = newTextarea;
+      if (globalImageInput) globalImageInput.click();
+    });
+  }
+
+  // Handle global image input selection
+  if (globalImageInput) {
+    globalImageInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file || !activeEditingTextarea) return;
+
+      try {
+        const compressedDataUrl = await compressImage(file);
+        insertImageTagAtCursor(activeEditingTextarea, compressedDataUrl);
+        UI.showNotification("Image attached.");
+      } catch (err) {
+        console.error("Image compression error:", err);
+        UI.showNotification("Failed to attach image.");
+      }
+      globalImageInput.value = "";
+    });
+  }
+
+  // Image upload click inside timeline card edit mode delegation
+  timelineFeed.addEventListener("click", (e) => {
+    const imageUploadBtn = e.target.closest(".btn-card-image-upload");
+    if (imageUploadBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const row = e.target.closest(".timeline-row");
+      if (row) {
+        activeEditingTextarea = row.querySelector(".card-edit-textarea");
+        if (globalImageInput) globalImageInput.click();
+      }
+    }
+  });
+
+  // Global paste handler for images into textareas
+  document.addEventListener("paste", async (e) => {
+    const activeEl = document.activeElement;
+    if (!activeEl || (!activeEl.classList.contains("edit-textarea") && activeEl.id !== "new-textarea")) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) {
+          try {
+            const compressedDataUrl = await compressImage(file);
+            insertImageTagAtCursor(activeEl, compressedDataUrl);
+            UI.showNotification("Pasted image attached.");
+          } catch (err) {
+            console.error("Paste image error:", err);
+            UI.showNotification("Failed to paste image.");
+          }
+        }
+        break;
+      }
+    }
+  });
 
   // Close context dropdowns when clicking outside
   window.addEventListener("click", (e) => {
