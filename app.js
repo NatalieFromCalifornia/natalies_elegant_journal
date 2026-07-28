@@ -926,10 +926,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const entry = DB.getPrivateEntries().find(e => e.id === id);
 
       if (activeMode === "raw") {
+        const currentCancelBtn = editState.querySelector(".btn-card-edit-cancel");
+        const currentDoneBtn = editState.querySelector(".btn-card-edit-done");
+
         isTranscribing = true;
-        doneBtn.disabled = true;
-        cancelBtn.disabled = true;
-        loadingState.style.display = "flex";
+        if (currentDoneBtn) currentDoneBtn.disabled = true;
+        if (currentCancelBtn) currentCancelBtn.disabled = true;
+        if (loadingState) loadingState.style.display = "flex";
 
         try {
           const rewritten = await AIEngine.rewrite(updatedValue);
@@ -940,9 +943,9 @@ document.addEventListener("DOMContentLoaded", () => {
           UI.showNotification(err.message || "Rewrite failed.");
         } finally {
           isTranscribing = false;
-          doneBtn.disabled = false;
-          cancelBtn.disabled = false;
-          loadingState.style.display = "none";
+          if (currentDoneBtn) currentDoneBtn.disabled = false;
+          if (currentCancelBtn) currentCancelBtn.disabled = false;
+          if (loadingState) loadingState.style.display = "none";
         }
       } else {
         // Save manual rewrite override
