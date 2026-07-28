@@ -5,6 +5,7 @@ Follow these strict rules to ensure a natural, elegant, and accurate rewrite:
 1. Tone & Style: Write with the understated grace, poise, and intelligence of a 19th-century gentlewoman. Avoid "purple prose," forced archaic words, and flowery caricatures. Think of the natural, clear, and dignified style of Jane Austen or George Eliot—not an exaggerated melodrama.
 2. No Information Loss: You must preserve all original facts, events, and meanings. Do not invent fluff or omit details.
 3. Modern Terminology: When rewriting modern concepts (such as websites, web applications, hosting, coding, or databases), do not invent awkward or misleading literal translations (like "digital system" for a web app). Instead, describe the core action naturally in standard, elegant English (e.g., "publishing my digital work for the world to see," "creating a ledger," or "refining my manuscript scripts") or straight up use the correct modern terminology if the meaning is hard to convey. Keep the meaning clear and grounded.
+4. Brevity & Proportional Length: Strictly maintain length proportional to the input. If the input is brief (e.g., "test text" or a single phrase), rewrite it into a single concise 19th-century sentence. NEVER invent fictional backstories, unmentioned events, or multi-paragraph fluff not present in the input text.
 
 Output ONLY the rewritten prose. Do not include any introductions, headers, or meta comments.`;
 
@@ -232,10 +233,11 @@ const Renderer = {
   render(text) {
     if (!text) return "";
 
-    // Extract image markdown tags before escaping HTML
+    // Extract image markdown tags (both Base64 and short img-xxx IDs) before escaping HTML
     const images = [];
-    let cleanText = text.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
-      images.push(dataUrl);
+    let cleanText = text.replace(/!\[.*?\]\((data:image\/[^)]+|img-[^)]+)\)/g, (match, dataUrl) => {
+      const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
+      images.push(actualUrl);
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
@@ -243,10 +245,15 @@ const Renderer = {
     escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
                      .replace(/\n/g, '<br>');
 
-    // Restore images as rounded journal-entry-img elements
+    // Restore images as rounded journal-entry-img elements and collapse excessive surrounding line breaks
     images.forEach((dataUrl, idx) => {
-      escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, `<img class="journal-entry-img" src="${dataUrl}" alt="Journal entry attachment" />`);
+      const imgTag = `<img class="journal-entry-img" src="${dataUrl}" alt="Journal entry attachment" />`;
+      escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
+
+    // Remove double <br> tags immediately before or after images to prevent excessive vertical gaps
+    escaped = escaped.replace(/(<br>\s*)+<img class="journal-entry-img"/g, '<br><img class="journal-entry-img"');
+    escaped = escaped.replace(/<img class="journal-entry-img"([^>]*)\/>(\s*<br>)+/g, '<img class="journal-entry-img"$1/><br>');
 
     return escaped;
   },
@@ -327,14 +334,19 @@ function compressImage(file, maxDimension = 800, quality = 0.8) {
   });
 }
 
+const tempImageStore = {};
+
 function insertImageTagAtCursor(textarea, dataUrl) {
+  const imgId = "img-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+  tempImageStore[imgId] = dataUrl;
+
   const start = textarea.selectionStart || 0;
   const end = textarea.selectionEnd || 0;
   const text = textarea.value;
-  const imageTag = `\n\n![image](${dataUrl})\n\n`;
+  const shortTag = `\n![attached-image](${imgId})\n`;
 
-  textarea.value = text.substring(0, start) + imageTag + text.substring(end);
-  textarea.selectionStart = textarea.selectionEnd = start + imageTag.length;
+  textarea.value = text.substring(0, start) + shortTag + text.substring(end);
+  textarea.selectionStart = textarea.selectionEnd = start + shortTag.length;
   textarea.focus();
   
   textarea.style.height = "auto";
@@ -349,9 +361,15 @@ const AIEngine = {
       throw new Error("API Key Missing: Configure your Gemini API Key in your private Firestore settings.");
     }
 
+    // Resolve short img-xxx IDs to Base64 data URLs before tokenization
+    let resolvedContent = rawContent.replace(/!\[.*?\]\((img-[^)]+)\)/g, (match, imgId) => {
+      const realUrl = tempImageStore[imgId] || imgId;
+      return `![attached-image](${realUrl})`;
+    });
+
     // Protect image attachments by replacing Base64 tags with tokens before API call
     const imageTokens = [];
-    const sanitizedText = rawContent.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
+    const sanitizedText = resolvedContent.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
       const token = `[[JOURNAL_IMG_${imageTokens.length}]]`;
       imageTokens.push({ token, dataUrl, fullMatch: match });
       return `\n${token}\n`;
@@ -965,7 +983,15 @@ document.addEventListener("DOMContentLoaded", () => {
     editState.querySelectorAll(".btn-toggle-edit").forEach(btn => btn.classList.remove("active"));
     editState.querySelector('.btn-toggle-edit[data-mode="raw"]').classList.add("active");
     editState.querySelector(".edit-label").textContent = "JOURNAL ENTRY";
-    textarea.value = entry ? entry.rawContent : "";
+
+    let initialText = entry ? entry.rawContent : "";
+    initialText = initialText.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
+      const imgId = "img-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
+      tempImageStore[imgId] = dataUrl;
+      return `![attached-image](${imgId})`;
+    });
+
+    textarea.value = initialText;
     delete editState.dataset.tempRaw;
 
     viewState.style.display = "none";

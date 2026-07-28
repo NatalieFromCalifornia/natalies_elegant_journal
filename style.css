@@ -805,13 +805,12 @@ body.gander-mode .redacted-text:hover {
 .journal-entry-img {
   display: block;
   max-width: 100%;
-  max-height: 380px;
+  max-height: 360px;
   width: auto;
   height: auto;
-  object-fit: cover;
-  border-radius: 14px;
-  margin: 18px auto;
-  box-shadow: 0 4px 18px rgba(46, 43, 42, 0.08);
+  border-radius: 12px;
+  margin: 8px 0;
+  box-shadow: 0 4px 16px rgba(46, 43, 42, 0.08);
   border: 1px solid rgba(46, 43, 42, 0.06);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
