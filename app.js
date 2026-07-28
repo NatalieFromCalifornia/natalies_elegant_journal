@@ -715,6 +715,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Text selection listener for Victorian view-mode redactions (Mobile + Desktop touch support)
   function handleTextSelection(e) {
     if (!reminisceUnlocked) return;
+    if (activeUnredactTarget) return;
 
     const selection = window.getSelection();
     const selectedText = selection ? selection.toString().trim() : "";
@@ -1071,6 +1072,12 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("click", (e) => {
     if (!e.target.matches(".btn-more")) {
       document.querySelectorAll(".context-menu").forEach(m => m.classList.remove("active"));
+    }
+    if (!e.target.closest("#btn-floating-unredact") && !e.target.closest(".redacted-text")) {
+      if (activeUnredactTarget) {
+        activeUnredactTarget = null;
+        if (btnFloatingUnredact) btnFloatingUnredact.style.display = "none";
+      }
     }
   });
 
