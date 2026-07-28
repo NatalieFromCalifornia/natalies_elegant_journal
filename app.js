@@ -64,9 +64,10 @@ const DB = {
     localStorage.setItem("ej_entries_private", JSON.stringify(entries));
   },
 
-  async saveEntry(entry, rawContent, victorianContent) {
+  async saveEntry(entry, rawContent, victorianContent, preserveUpdatedAt = false) {
     const publicContent = maskSecrets(victorianContent);
     const now = new Date().toISOString();
+    const updatedAt = (preserveUpdatedAt && entry.updatedAt) ? entry.updatedAt : now;
 
     // 1. Create Public Schema
     const publicEntry = {
@@ -74,7 +75,7 @@ const DB = {
       date: entry.date || now,
       publicContent: publicContent,
       createdAt: entry.createdAt || now,
-      updatedAt: now
+      updatedAt: updatedAt
     };
 
     // 2. Create Private Schema
@@ -84,7 +85,7 @@ const DB = {
       rawContent: rawContent,
       victorianContent: victorianContent,
       createdAt: entry.createdAt || now,
-      updatedAt: now
+      updatedAt: updatedAt
     };
 
     // Save offline caches
@@ -417,6 +418,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnUnlock = document.getElementById("btn-unlock");
   const btnSettings = document.getElementById("btn-settings");
   const btnHeaderLogout = document.getElementById("btn-header-logout");
+  const headerLogoutGroup = document.getElementById("header-logout-group");
   const welcomeState = document.getElementById("welcome-state");
   const timelineFeed = document.getElementById("timeline-feed");
   const btnRecordNew = document.getElementById("btn-record-new");
@@ -545,12 +547,12 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
       btnSettings.style.display = "flex";
-      if (btnHeaderLogout) btnHeaderLogout.style.display = "flex";
+      if (headerLogoutGroup) headerLogoutGroup.style.display = "flex";
     } else {
       document.body.classList.add("gander-mode");
       btnUnlock.style.display = "flex";
       btnSettings.style.display = "none";
-      if (btnHeaderLogout) btnHeaderLogout.style.display = "none";
+      if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
     }
   }
 
@@ -784,7 +786,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (entry && entry.victorianContent.includes(text)) {
       entry.victorianContent = entry.victorianContent.replace(text, `||${text}||`);
-      await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
+      await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
       renderTimeline();
       UI.showNotification("Secret redacted.");
     } else {
@@ -813,7 +815,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const targetPattern = `||${secretText}||`;
       if (entry.victorianContent.includes(targetPattern)) {
         entry.victorianContent = entry.victorianContent.replace(targetPattern, secretText);
-        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
+        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
         renderTimeline();
         UI.showNotification("Secret unredacted.");
       }

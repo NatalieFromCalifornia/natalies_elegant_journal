@@ -123,19 +123,45 @@ body {
 .hamburger-icon,
 .lock-icon,
 .logout-icon {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   fill: currentColor;
 }
 
-#btn-header-logout {
-  padding: 6px;
-  border-radius: 4px;
-  transition: opacity 0.2s ease, background-color 0.2s ease;
+.btn-menu-pill {
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(46, 43, 42, 0.14);
+  transition: all 0.2s ease;
 }
 
-#btn-header-logout:hover {
+.btn-menu-pill:hover {
   background-color: rgba(46, 43, 42, 0.05);
+  border-color: rgba(46, 43, 42, 0.3);
+}
+
+.header-logout-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-divider {
+  width: 1px;
+  height: 14px;
+  background-color: rgba(46, 43, 42, 0.15);
+}
+
+.btn-logout-text {
+  color: var(--ink-muted);
+  padding: 4px 8px;
+  border-radius: 12px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.btn-logout-text:hover {
+  color: #c0392b;
+  background-color: rgba(192, 57, 43, 0.06);
 }
 
 /* Main Timeline Flow scroll area */
