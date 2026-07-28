@@ -361,17 +361,13 @@ const AIEngine = {
       throw new Error("API Key Missing: Configure your Gemini API Key in your private Firestore settings.");
     }
 
-    // Resolve short img-xxx IDs to Base64 data URLs before tokenization
-    let resolvedContent = rawContent.replace(/!\[.*?\]\((img-[^)]+)\)/g, (match, imgId) => {
-      const realUrl = tempImageStore[imgId] || imgId;
-      return `![attached-image](${realUrl})`;
-    });
-
-    // Protect image attachments by replacing Base64 tags with tokens before API call
+    // Protect image attachments by replacing Base64 tags or short img-xxx IDs with tokens before API call
     const imageTokens = [];
-    const sanitizedText = resolvedContent.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
+    const sanitizedText = rawContent.replace(/!\[.*?\]\((data:image\/[^)]+|img-[^)]+)\)/g, (match, urlOrId) => {
       const token = `[[JOURNAL_IMG_${imageTokens.length}]]`;
-      imageTokens.push({ token, dataUrl, fullMatch: match });
+      const fullUrl = (urlOrId.startsWith("img-") && tempImageStore[urlOrId]) ? tempImageStore[urlOrId] : urlOrId;
+      const fullMatch = `![attached-image](${fullUrl})`;
+      imageTokens.push({ token, fullMatch });
       return `\n${token}\n`;
     });
 
@@ -938,12 +934,11 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           const rewritten = await AIEngine.rewrite(updatedValue);
           await DB.saveEntry(entry, updatedValue, rewritten);
-          
-          isTranscribing = false;
-          loadingState.style.display = "none";
           renderTimeline();
         } catch(err) {
+          console.error("Edit rewrite error:", err);
           UI.showNotification(err.message || "Rewrite failed.");
+        } finally {
           isTranscribing = false;
           doneBtn.disabled = false;
           cancelBtn.disabled = false;
@@ -967,6 +962,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Helper to open existing entry card in edit mode
   function openEditor(row) {
+    isTranscribing = false;
     const viewState = row.querySelector(".card-view-state");
     const editState = row.querySelector(".card-edit-state");
     const textarea = editState.querySelector(".card-edit-textarea");
