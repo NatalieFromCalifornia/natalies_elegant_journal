@@ -1075,12 +1075,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Close context dropdowns and floating unredact when clicking outside
+  // Close context dropdowns and floating buttons when clicking outside
   window.addEventListener("click", (e) => {
     if (!e.target.matches(".btn-more")) {
       document.querySelectorAll(".context-menu").forEach(m => m.classList.remove("active"));
     }
-    if (!e.target.closest("#btn-floating-unredact") && !e.target.closest(".redacted-text") && !e.target.closest("#btn-floating-redact")) {
+
+    const sel = window.getSelection();
+    const hasSelection = sel && !sel.isCollapsed && sel.toString().trim().length > 0;
+
+    if (!hasSelection && !e.target.closest("#btn-floating-unredact") && !e.target.closest(".redacted-text") && !e.target.closest("#btn-floating-redact")) {
       hideFloatingRedact();
     }
   });
