@@ -66,7 +66,18 @@ const DB = {
   },
 
   async saveEntry(entry, rawContent, victorianContent, preserveUpdatedAt = false) {
-    const publicContent = maskSecrets(victorianContent);
+    // Resolve short img-xxx IDs to full Base64 URLs before writing to DB
+    const resolveImages = (text) => {
+      if (!text) return "";
+      return text.replace(/!\[.*?\]\((img-[^)]+|data:image\/[^)]+)\)/g, (match, urlOrId) => {
+        const fullUrl = (urlOrId.startsWith("img-") && tempImageStore[urlOrId]) ? tempImageStore[urlOrId] : urlOrId;
+        return `![attached-image](${fullUrl})`;
+      });
+    };
+
+    const fullRawContent = resolveImages(rawContent);
+    const fullVictorianContent = resolveImages(victorianContent);
+    const publicContent = maskSecrets(fullVictorianContent);
     const now = new Date().toISOString();
     const updatedAt = (preserveUpdatedAt && entry.updatedAt) ? entry.updatedAt : now;
 
@@ -83,8 +94,8 @@ const DB = {
     const privateEntry = {
       id: entry.id,
       date: entry.date || now,
-      rawContent: rawContent,
-      victorianContent: victorianContent,
+      rawContent: fullRawContent,
+      victorianContent: fullVictorianContent,
       createdAt: entry.createdAt || now,
       updatedAt: updatedAt
     };
@@ -926,16 +937,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const entry = DB.getPrivateEntries().find(e => e.id === id);
 
       if (activeMode === "raw") {
-        // Compare raw text ignoring whitespace differences to check if words actually changed
-        const normalizedOriginal = (entry.rawContent || "").replace(/\s+/g, " ").trim();
-        const normalizedUpdated = updatedValue.replace(/\s+/g, " ").trim();
-        const wordsUnchanged = (normalizedOriginal === normalizedUpdated);
+        // Compare raw text ignoring image tags, whitespace, and punctuation (e.g. adding a period) to check if actual words changed
+        const cleanOriginal = (entry.rawContent || "").replace(/!\[.*?\]\([^)]+\)/g, "");
+        const cleanUpdated = updatedValue.replace(/!\[.*?\]\([^)]+\)/g, "");
+
+        const wordsOriginal = cleanOriginal.toLowerCase().replace(/[^\w]/g, "");
+        const wordsUpdated = cleanUpdated.toLowerCase().replace(/[^\w]/g, "");
+        const wordsUnchanged = (wordsOriginal === wordsUpdated);
 
         if (wordsUnchanged) {
-          // Whitespace-only edit: skip Gemini API call and save formatting directly
+          // Punctuation, whitespace, or formatting edit: skip Gemini API call and save formatting directly
           await DB.saveEntry(entry, updatedValue, entry.victorianContent);
           renderTimeline();
-          UI.showNotification("Formatting updated.");
+          UI.showNotification("Reflection updated.");
           return;
         }
 
