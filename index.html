@@ -15,6 +15,7 @@
     import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     window.Firebase = { initializeApp, getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged };
+    window.dispatchEvent(new CustomEvent("firebase-ready"));
   </script>
 </head>
 <body>

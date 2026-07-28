@@ -122,6 +122,11 @@ const DB = {
   },
 
   async initFirebase() {
+    await waitForFirebase();
+    if (!window.Firebase) {
+      console.log("Firebase SDK failed to load. Running offline on LocalStorage.");
+      return;
+    }
     try {
       const response = await fetch("firebase_config.json");
       if (response.ok) {
