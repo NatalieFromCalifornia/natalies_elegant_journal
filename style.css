@@ -123,9 +123,19 @@ body {
 .hamburger-icon,
 .lock-icon,
 .logout-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
+}
+
+#btn-header-logout {
+  padding: 6px;
+  border-radius: 4px;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+#btn-header-logout:hover {
+  background-color: rgba(46, 43, 42, 0.05);
 }
 
 /* Main Timeline Flow scroll area */
