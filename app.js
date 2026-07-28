@@ -407,6 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Elements
   const btnUnlock = document.getElementById("btn-unlock");
   const btnSettings = document.getElementById("btn-settings");
+  const btnHeaderLogout = document.getElementById("btn-header-logout");
   const welcomeState = document.getElementById("welcome-state");
   const timelineFeed = document.getElementById("timeline-feed");
   const btnRecordNew = document.getElementById("btn-record-new");
@@ -419,6 +420,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const newCardLoading = document.getElementById("new-card-loading");
   const btnNewCancel = document.getElementById("btn-new-cancel");
   const btnNewDone = document.getElementById("btn-new-done");
+  const btnNewImage = document.getElementById("btn-new-image");
+  const globalImageInput = document.getElementById("global-image-input");
+  let activeEditingTextarea = null;
 
   // Floating Context Redact
   const btnFloatingRedact = document.getElementById("btn-floating-redact");
@@ -522,13 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
   }
 
-  // Elements
-  const btnUnlock = document.getElementById("btn-unlock");
-  const btnSettings = document.getElementById("btn-settings");
-  const btnHeaderLogout = document.getElementById("btn-header-logout");
-  const btnNewImage = document.getElementById("btn-new-image");
-  const globalImageInput = document.getElementById("global-image-input");
-  let activeEditingTextarea = null;
+
 
   // Toggle UI layouts based on modes
   function applyModeUI() {
