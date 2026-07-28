@@ -239,7 +239,7 @@ const Renderer = {
     });
 
     let escaped = this.escapeHtml(cleanText);
-    escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Right-click or long-press to unredact">$1</span>')
+    escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
                      .replace(/\n/g, '<br>');
 
     // Restore images as rounded journal-entry-img elements
@@ -433,9 +433,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const globalImageInput = document.getElementById("global-image-input");
   let activeEditingTextarea = null;
 
-  // Floating Context Redact & Unredact
+  // Floating Context Redact
   const btnFloatingRedact = document.getElementById("btn-floating-redact");
-  const btnFloatingUnredact = document.getElementById("btn-floating-unredact");
 
   // Settings Modal elements
   const modalSettings = document.getElementById("modal-settings");
@@ -449,7 +448,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // States
   let activeSelection = null;
-  let activeUnredactTarget = null;
   let isTranscribing = false;
   let reminisceUnlocked = false;
 
@@ -760,9 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function hideFloatingRedact() {
     if (btnFloatingRedact) btnFloatingRedact.style.display = "none";
-    if (btnFloatingUnredact) btnFloatingUnredact.style.display = "none";
     activeSelection = null;
-    activeUnredactTarget = null;
   }
 
   // Redact action handler
@@ -792,35 +788,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btnFloatingRedact.addEventListener("mousedown", performRedaction);
   btnFloatingRedact.addEventListener("touchstart", performRedaction);
-
-  // Unredact action handler (Floating Button)
-  const performUnredaction = async (e) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    if (!activeUnredactTarget || !reminisceUnlocked) return;
-
-    const { cardId, secretText } = activeUnredactTarget;
-    const entry = DB.getPrivateEntries().find(e => e.id === cardId);
-    if (entry) {
-      const targetPattern = `||${secretText}||`;
-      if (entry.victorianContent.includes(targetPattern)) {
-        entry.victorianContent = entry.victorianContent.replace(targetPattern, secretText);
-        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
-        renderTimeline();
-        UI.showNotification("Secret unredacted.");
-      }
-    }
-
-    hideFloatingRedact();
-  };
-
-  if (btnFloatingUnredact) {
-    btnFloatingUnredact.addEventListener("mousedown", performUnredaction);
-    btnFloatingUnredact.addEventListener("touchstart", performUnredaction);
-  }
 
   // Timeline events delegation (clicks)
   timelineFeed.addEventListener("click", async (e) => {
@@ -1068,26 +1035,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Close context dropdowns when clicking outside
-  window.addEventListener("click", (e) => {
-    if (!e.target.matches(".btn-more")) {
-      document.querySelectorAll(".context-menu").forEach(m => m.classList.remove("active"));
-    }
-    if (!e.target.closest("#btn-floating-unredact") && !e.target.closest(".redacted-text")) {
-      if (activeUnredactTarget) {
-        activeUnredactTarget = null;
-        if (btnFloatingUnredact) btnFloatingUnredact.style.display = "none";
-      }
-    }
-  });
-
-  // Click/tap on redacted secret element to show floating UNREDACT button
-  timelineFeed.addEventListener("click", (e) => {
+  // Direct click/tap on redacted secret element to unredact instantly
+  timelineFeed.addEventListener("click", async (e) => {
     const redactedEl = e.target.closest(".redacted-text");
     if (!redactedEl || !reminisceUnlocked) return;
 
+    e.preventDefault();
     e.stopPropagation();
-    hideFloatingRedact();
 
     const row = e.target.closest(".timeline-row");
     if (!row) return;
@@ -1095,19 +1049,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const secretText = redactedEl.dataset.secret || redactedEl.textContent;
     const cardId = row.dataset.id;
 
-    activeUnredactTarget = {
-      cardId,
-      secretText
-    };
-
-    const rect = redactedEl.getBoundingClientRect();
-    const btnWidth = 160;
-    let leftPos = rect.left + window.scrollX + (rect.width / 2) - (btnWidth / 2);
-    leftPos = Math.max(10, Math.min(leftPos, window.innerWidth - btnWidth - 10));
-
-    btnFloatingUnredact.style.left = `${leftPos}px`;
-    btnFloatingUnredact.style.top = `${Math.max(10, rect.top + window.scrollY - 40)}px`;
-    btnFloatingUnredact.style.display = "block";
+    const entry = DB.getPrivateEntries().find(item => item.id === cardId);
+    if (entry) {
+      const targetPattern = `||${secretText}||`;
+      if (entry.victorianContent.includes(targetPattern)) {
+        entry.victorianContent = entry.victorianContent.replace(targetPattern, secretText);
+        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent);
+        renderTimeline();
+        UI.showNotification("Secret unredacted.");
+      }
+    }
   });
 
   // Prominent Unlock Button Click (Triggers Google Auth popup directly)
