@@ -251,9 +251,9 @@ const Renderer = {
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
-    // Remove double <br> tags immediately before or after images to prevent excessive vertical gaps
-    escaped = escaped.replace(/(<br>\s*)+<img class="journal-entry-img"/g, '<br><img class="journal-entry-img"');
-    escaped = escaped.replace(/<img class="journal-entry-img"([^>]*)\/>(\s*<br>)+/g, '<img class="journal-entry-img"$1/><br>');
+    // Strip all adjacent <br> tags surrounding block images so display: block margin controls vertical spacing cleanly
+    escaped = escaped.replace(/(<br>\s*)+<img class="journal-entry-img"/g, '<img class="journal-entry-img"');
+    escaped = escaped.replace(/<img class="journal-entry-img"([^>]*)\/>(\s*<br>)+/g, '<img class="journal-entry-img"$1/>');
 
     return escaped;
   },

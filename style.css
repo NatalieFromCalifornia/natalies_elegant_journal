@@ -809,7 +809,7 @@ body.gander-mode .redacted-text:hover {
   width: auto;
   height: auto;
   border-radius: 12px;
-  margin: 8px 0;
+  margin: 10px 0;
   box-shadow: 0 4px 16px rgba(46, 43, 42, 0.08);
   border: 1px solid rgba(46, 43, 42, 0.06);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
