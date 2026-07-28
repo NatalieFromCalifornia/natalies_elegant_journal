@@ -83,6 +83,12 @@ body {
   gap: 8px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .header-dot {
   font-size: 16px;
 }
@@ -333,6 +339,8 @@ body {
   line-height: 1.75;
   text-align: left;
   margin-bottom: 16px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Secret redaction marker styling */
@@ -348,6 +356,8 @@ body {
   user-select: none;
   -webkit-user-select: none;
   transition: opacity 0.2s ease;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .redacted-text:hover {
