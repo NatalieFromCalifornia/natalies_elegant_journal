@@ -926,6 +926,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const entry = DB.getPrivateEntries().find(e => e.id === id);
 
       if (activeMode === "raw") {
+        // Compare raw text ignoring whitespace differences to check if words actually changed
+        const normalizedOriginal = (entry.rawContent || "").replace(/\s+/g, " ").trim();
+        const normalizedUpdated = updatedValue.replace(/\s+/g, " ").trim();
+        const wordsUnchanged = (normalizedOriginal === normalizedUpdated);
+
+        if (wordsUnchanged) {
+          // Whitespace-only edit: skip Gemini API call and save formatting directly
+          await DB.saveEntry(entry, updatedValue, entry.victorianContent);
+          renderTimeline();
+          UI.showNotification("Formatting updated.");
+          return;
+        }
+
         const currentCancelBtn = editState.querySelector(".btn-card-edit-cancel");
         const currentDoneBtn = editState.querySelector(".btn-card-edit-done");
 
