@@ -331,7 +331,7 @@ body {
   font-size: 18px;
   color: var(--ink-color);
   line-height: 1.75;
-  text-align: justify;
+  text-align: left;
   margin-bottom: 16px;
 }
 
@@ -339,14 +339,15 @@ body {
 .redacted-text {
   background-color: var(--ink-color);
   color: var(--ink-color);
-  padding: 0 4px;
-  border-radius: 2px;
-  display: inline-block;
-  line-height: 1.25; /* Increased height to fully cover descenders like g and y */
-  vertical-align: middle;
-  cursor: help;
+  padding: 2px 4px;
+  border-radius: 3px;
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
   user-select: none;
-  transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  -webkit-user-select: none;
+  transition: opacity 0.2s ease;
 }
 
 .redacted-text:hover {
