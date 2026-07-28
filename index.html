@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2.1">
+  <link rel="stylesheet" href="style.css?v=2.2">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -38,8 +38,9 @@
             <svg class="hamburger-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
           </button>
 
-          <!-- Small LOGOUT icon button shown in Reminisce Mode on the right -->
+          <!-- Small LOGOUT button shown in Reminisce Mode on the right -->
           <button id="btn-header-logout" class="btn-menu" title="Log Out" style="display: none;">
+            <span>LOGOUT</span>
             <svg class="logout-icon" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
           </button>
         </div>
@@ -102,6 +103,11 @@
     <!-- Floating Context Redact Button (Appears near Victorian text selections in view mode) -->
     <button id="btn-floating-redact" class="btn-floating-redact" style="display: none;">
       [ REDACT SECRET ]
+    </button>
+
+    <!-- Floating Context Unredact Button (Appears near redacted secrets in view mode) -->
+    <button id="btn-floating-unredact" class="btn-floating-redact" style="display: none;">
+      [ UNREDACT SECRET ]
     </button>
     <!-- PIN Unlock Modal (Gander -> Reminisce Mode) -->
     <div id="modal-pin" class="modal-overlay">
@@ -189,6 +195,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=2.1"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>
