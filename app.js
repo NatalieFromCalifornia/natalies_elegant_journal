@@ -22,6 +22,15 @@ function maskSecrets(text) {
   });
 }
 
+// Firebase ready listener helper
+function waitForFirebase() {
+  if (window.Firebase) return Promise.resolve();
+  return new Promise((resolve) => {
+    window.addEventListener("firebase-ready", resolve, { once: true });
+    setTimeout(resolve, 3000);
+  });
+}
+
 // Database Module (localStorage & Firestore Cloud Sync)
 let db = null; 
 let auth = null; 
