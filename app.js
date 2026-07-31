@@ -565,9 +565,10 @@ document.addEventListener("DOMContentLoaded", () => {
           await DB.fetchCloudSettings();
           await DB.fetchPrivateCloudEntries();
         } else if (user) {
-          // If logged in with wrong email, sign out instantly
+          // If logged in with wrong email, sign out instantly and notify
           await window.Firebase.signOut(auth);
           reminisceUnlocked = false;
+          UI.showNotification("Access denied: Only the journal owner can unlock.");
         } else {
           reminisceUnlocked = false;
         }
@@ -1217,7 +1218,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (auth) {
       try {
         const provider = new window.Firebase.GoogleAuthProvider();
-        await window.Firebase.signInWithPopup(auth, provider);
+        const res = await window.Firebase.signInWithPopup(auth, provider);
+        if (res.user && ownerEmail && res.user.email !== ownerEmail) {
+          await window.Firebase.signOut(auth);
+          reminisceUnlocked = false;
+          UI.showNotification("Access denied: Only the journal owner can unlock.");
+        }
       } catch (err) {
         console.error("Sign-in failed:", err);
         UI.showNotification("Google Sign-In failed or was cancelled.");
