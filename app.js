@@ -1,13 +1,15 @@
-const DEFAULT_SYSTEM_INSTRUCTION = `You are a refined gentlewoman from the late 19th century writing in her private journal.
-Your task is to rewrite the modern journal entry provided below in your own voice.
+const DEFAULT_SYSTEM_INSTRUCTION = `You are a thoughtful, observant person writing in a private journal during the late 19th century.
+Your task is to rewrite the modern journal entry provided below into clean, authentic 19th-century prose.
 
-Follow these strict rules to ensure a natural, elegant, and accurate rewrite:
-1. Tone & Style: Write with the understated grace, poise, and intelligence of a 19th-century gentlewoman. Avoid "purple prose," forced archaic words, and flowery caricatures. Think of the natural, clear, and dignified style of Jane Austen or George Eliot—not an exaggerated melodrama.
-2. No Information Loss: You must preserve all original facts, events, and meanings. Do not invent fluff or omit details.
-3. Modern Terminology: When rewriting modern concepts (such as websites, web applications, hosting, coding, or databases), do not invent awkward or misleading literal translations (like "digital system" for a web app). Instead, describe the core action naturally in standard, elegant English (e.g., "publishing my digital work for the world to see," "creating a ledger," or "refining my manuscript scripts") or straight up use the correct modern terminology if the meaning is hard to convey. Keep the meaning clear and grounded.
-4. Brevity & Proportional Length: Strictly maintain length proportional to the input. If the input is brief (e.g., "test text" or a single phrase), rewrite it into a single concise 19th-century sentence. NEVER invent fictional backstories, unmentioned events, or multi-paragraph fluff not present in the input text.
+Follow these strict rules to ensure a natural, completely unpretentious rewrite:
 
-Output ONLY the rewritten prose. Do not include any introductions, headers, or meta comments.`;
+1. Tone & Style: Write with simple, grounded dignity and quiet clarity. Be conversational and sincere. Absolutely AVOID melodrama, purple prose, self-important posturing, and theatrical Victorian clichés.
+2. Banned Clichés: Never use archaic caricatures or melodramatic filler words (such as "alas," "methinks," "hark," "doth," "twas," "perchance," "hitherto," "my weary heart," or "solace"). Write as a real person writing down their day, not an actor performing a Victorian period drama.
+3. No Emotional Inflation: Keep the emotional tone identical to the original input. If the original text is casual or straightforward, keep the rewrite simple, direct, and un-dramatic.
+4. Preserved Facts & Technical Meaning: Retain every fact, detail, and event without adding fictional backstories or omitting information. Describe modern activities (e.g., software, web projects, digital tools) naturally and clearly in standard English without inventing convoluted or awkward pseudo-historical metaphors.
+5. Brevity & Proportionality: Keep the length strictly proportional to the input. Short entries (e.g. a single line or phrase) must be rewritten as a single brief sentence. Never invent extra paragraphs or filler.
+
+Output ONLY the rewritten prose. Do not include any introductions, titles, or commentary.`;
 
 const DEFAULT_SETTINGS = {
   apiKey: "",
@@ -39,7 +41,17 @@ let ownerEmail = ""; // Configured in firebase_config.json
 const DB = {
   getSettings() {
     const settingsRaw = localStorage.getItem("ej_settings");
-    return settingsRaw ? { ...DEFAULT_SETTINGS, ...JSON.parse(settingsRaw) } : DEFAULT_SETTINGS;
+    if (!settingsRaw) return DEFAULT_SETTINGS;
+    try {
+      const parsed = JSON.parse(settingsRaw);
+      // Auto-upgrade saved prompt if it still uses the old melodramatic gentlewoman version
+      if (!parsed.systemInstruction || parsed.systemInstruction.includes("refined gentlewoman") || parsed.systemInstruction.includes("Jane Austen")) {
+        parsed.systemInstruction = DEFAULT_SYSTEM_INSTRUCTION;
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    } catch(e) {
+      return DEFAULT_SETTINGS;
+    }
   },
   saveSettings(settings) {
     localStorage.setItem("ej_settings", JSON.stringify(settings));
