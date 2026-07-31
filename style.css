@@ -813,6 +813,8 @@ body.gander-mode .redacted-text:hover {
   box-shadow: 0 4px 16px rgba(46, 43, 42, 0.08);
   border: 1px solid rgba(46, 43, 42, 0.06);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .journal-entry-img:hover {
@@ -821,10 +823,12 @@ body.gander-mode .redacted-text:hover {
 }
 
 /* Mobile & Touch Selection Improvements */
-.btn-floating-redact {
+.btn-floating-redact,
+.btn-floating-unredact {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
+  z-index: 9999 !important;
 }
 

@@ -244,11 +244,22 @@ const Renderer = {
   render(text) {
     if (!text) return "";
 
-    // Extract image markdown tags (both Base64 and short img-xxx IDs) before escaping HTML
+    // Extract image markdown tags OR raw data:image Base64 strings OR short img-xxx IDs
     const images = [];
-    let cleanText = text.replace(/!\[.*?\]\((data:image\/[^)]+|img-[^)]+)\)/g, (match, dataUrl) => {
+
+    // Pass 1: Markdown image syntax ![alt](url) with optional spaces or line breaks
+    let cleanText = text.replace(/!\[[\s\S]*?\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)/gi, (match, dataUrl) => {
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
-      images.push(actualUrl);
+      if (actualUrl && !actualUrl.startsWith("img-")) {
+        images.push(actualUrl);
+        return `___IMG_PLACEHOLDER_${images.length - 1}___`;
+      }
+      return "";
+    });
+
+    // Pass 2: Raw unparsed data:image Base64 URLs (e.g. if markdown parens were stripped or altered)
+    cleanText = cleanText.replace(/(data:image\/[a-zA-Z0-9\/+;=,-]+)/gi, (match, dataUrl) => {
+      images.push(dataUrl);
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
@@ -256,9 +267,9 @@ const Renderer = {
     escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
                      .replace(/\n/g, '<br>');
 
-    // Restore images as rounded journal-entry-img elements and collapse excessive surrounding line breaks
+    // Restore images as rounded journal-entry-img elements
     images.forEach((dataUrl, idx) => {
-      const imgTag = `<img class="journal-entry-img" src="${dataUrl}" alt="Journal entry attachment" />`;
+      const imgTag = `<img class="journal-entry-img" src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" />`;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
@@ -784,9 +795,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let leftPos = rect.left + window.scrollX + (rect.width / 2) - (btnWidth / 2);
     leftPos = Math.max(10, Math.min(leftPos, window.innerWidth - btnWidth - 10));
 
+    const isTouchMobile = ('ontouchstart' in window) || (window.innerWidth <= 768);
+    let topPos;
+    if (isTouchMobile || (rect.top - 50 < 10)) {
+      topPos = rect.bottom + window.scrollY + 10;
+    } else {
+      topPos = rect.top + window.scrollY - 44;
+    }
+
     if (btnFloatingUnredact) btnFloatingUnredact.style.display = "none";
     btnFloatingRedact.style.left = `${leftPos}px`;
-    btnFloatingRedact.style.top = `${Math.max(10, rect.top + window.scrollY - 40)}px`;
+    btnFloatingRedact.style.top = `${topPos}px`;
     btnFloatingRedact.style.display = "block";
   }
 
@@ -1167,9 +1186,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let leftPos = rect.left + window.scrollX + (rect.width / 2) - (btnWidth / 2);
     leftPos = Math.max(10, Math.min(leftPos, window.innerWidth - btnWidth - 10));
 
+    const isTouchMobile = ('ontouchstart' in window) || (window.innerWidth <= 768);
+    let topPos;
+    if (isTouchMobile || (rect.top - 50 < 10)) {
+      topPos = rect.bottom + window.scrollY + 10;
+    } else {
+      topPos = rect.top + window.scrollY - 44;
+    }
+
     if (btnFloatingRedact) btnFloatingRedact.style.display = "none";
     btnFloatingUnredact.style.left = `${leftPos}px`;
-    btnFloatingUnredact.style.top = `${Math.max(10, rect.top + window.scrollY - 40)}px`;
+    btnFloatingUnredact.style.top = `${topPos}px`;
     btnFloatingUnredact.style.display = "block";
   });
 
