@@ -21,7 +21,8 @@ const DEFAULT_SETTINGS = {
 function maskSecrets(text) {
   if (!text) return "";
   return text.replace(/\|\|(.*?)\|\|/g, (match, p1) => {
-    return `||${"█".repeat(p1.length)}||`;
+    const masked = p1.replace(/\S/g, "█");
+    return `||${masked}||`;
   });
 }
 
