@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3.5">
+  <link rel="stylesheet" href="style.css?v=3.6">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -79,6 +79,7 @@
               </div>
 
               <div class="edit-actions">
+                <button id="btn-new-speech" type="button" class="btn-text btn-speech-dictate" title="Dictate entry with voice">🎤 DICTATE</button>
                 <button id="btn-new-image" type="button" class="btn-text btn-image-upload" title="Attach or paste image">🖼️ IMAGE</button>
                 <button id="btn-new-cancel" class="btn-text">CANCEL</button>
                 <button id="btn-new-done" class="btn-pill">DONE</button>
@@ -198,6 +199,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=3.6"></script>
 </body>
 </html>

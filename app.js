@@ -481,6 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnNewCancel = document.getElementById("btn-new-cancel");
   const btnNewDone = document.getElementById("btn-new-done");
   const btnNewImage = document.getElementById("btn-new-image");
+  const btnNewSpeech = document.getElementById("btn-new-speech");
   const globalImageInput = document.getElementById("global-image-input");
   let activeEditingTextarea = null;
 
@@ -1092,6 +1093,102 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       UI.showNotification("Logged out of journal.");
     });
+  }
+
+  // Voice Dictation Module (Web Speech API with Fallback & Visual Indicator)
+  let activeRecognition = null;
+  let isDictating = false;
+
+  function setupVoiceDictation(btnElement, textareaElement) {
+    if (!btnElement || !textareaElement) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      btnElement.addEventListener("click", () => {
+        UI.showNotification("Voice dictation is not supported by your browser. Try Chrome, Edge, or Safari.");
+      });
+      return;
+    }
+
+    btnElement.addEventListener("click", () => {
+      if (isDictating) {
+        if (activeRecognition) {
+          try { activeRecognition.stop(); } catch(e) {}
+        }
+        return;
+      }
+
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || "en-US";
+
+        let initialText = textareaElement.value;
+        if (initialText && !initialText.endsWith(" ") && !initialText.endsWith("\n")) {
+          initialText += " ";
+        }
+
+        let accumulatedFinal = "";
+
+        recognition.onstart = () => {
+          isDictating = true;
+          activeRecognition = recognition;
+          btnElement.classList.add("dictating");
+          btnElement.innerHTML = `🔴 LISTENING...`;
+          UI.showNotification("Listening... Speak your entry naturally.");
+        };
+
+        recognition.onresult = (e) => {
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = e.resultIndex; i < e.results.length; ++i) {
+            if (e.results[i].isFinal) {
+              finalTranscript += e.results[i][0].transcript;
+            } else {
+              interimTranscript += e.results[i][0].transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            accumulatedFinal += finalTranscript + " ";
+          }
+
+          textareaElement.value = initialText + accumulatedFinal + interimTranscript;
+          textareaElement.style.height = "auto";
+          textareaElement.style.height = textareaElement.scrollHeight + "px";
+        };
+
+        recognition.onerror = (e) => {
+          console.error("Speech recognition error:", e.error);
+          if (e.error !== "no-speech" && e.error !== "aborted") {
+            UI.showNotification(`Voice error: ${e.error}`);
+          }
+          stopDictation();
+        };
+
+        recognition.onend = () => {
+          stopDictation();
+        };
+
+        function stopDictation() {
+          isDictating = false;
+          activeRecognition = null;
+          btnElement.classList.remove("dictating");
+          btnElement.innerHTML = `🎤 DICTATE`;
+        }
+
+        recognition.start();
+      } catch(err) {
+        console.error("Dictation start error:", err);
+        UI.showNotification("Could not access microphone.");
+      }
+    });
+  }
+
+  if (btnNewSpeech && newTextarea) {
+    setupVoiceDictation(btnNewSpeech, newTextarea);
   }
 
   // Handle image upload button click for new composer card
