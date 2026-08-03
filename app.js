@@ -7,7 +7,8 @@ Follow these strict rules to ensure a natural, completely unpretentious rewrite:
 2. Banned Clichés: Never use archaic caricatures or melodramatic filler words (such as "alas," "methinks," "hark," "doth," "twas," "perchance," "hitherto," "my weary heart," or "solace"). Write as a real person writing down their day, not an actor performing a Victorian period drama.
 3. No Emotional Inflation: Keep the emotional tone identical to the original input. If the original text is casual or straightforward, keep the rewrite simple, direct, and un-dramatic.
 4. Preserved Facts & Technical Meaning: Retain every fact, detail, and event without adding fictional backstories or omitting information. Describe modern activities (e.g., software, web projects, digital tools) naturally and clearly in standard English without inventing convoluted or awkward pseudo-historical metaphors.
-5. Brevity & Proportionality: Keep the length strictly proportional to the input. Short entries (e.g. a single line or phrase) must be rewritten as a single brief sentence. Never invent extra paragraphs or filler.
+5. Voice Dictation & Punctuation: The input text may be raw un-punctuated speech from voice dictation. You MUST automatically infer natural sentence boundaries, insert proper periods, commas, and capitalization, and break the prose into well-structured, clear sentences. NEVER produce run-on sentences.
+6. Brevity & Proportionality: Keep the length strictly proportional to the input. Short entries (e.g. a single line or phrase) must be rewritten as a single brief sentence. Never invent extra paragraphs or filler.
 
 Output ONLY the rewritten prose. Do not include any introductions, titles, or commentary.`;
 
@@ -1124,12 +1125,7 @@ document.addEventListener("DOMContentLoaded", () => {
         recognition.interimResults = true;
         recognition.lang = navigator.language || "en-US";
 
-        let initialText = textareaElement.value;
-        if (initialText && !initialText.endsWith(" ") && !initialText.endsWith("\n")) {
-          initialText += " ";
-        }
-
-        let accumulatedFinal = "";
+        let lastInterimLength = 0;
 
         recognition.onstart = () => {
           isDictating = true;
@@ -1152,10 +1148,29 @@ document.addEventListener("DOMContentLoaded", () => {
           }
 
           if (finalTranscript) {
-            accumulatedFinal += finalTranscript + " ";
+            if (lastInterimLength > 0) {
+              textareaElement.value = textareaElement.value.slice(0, -lastInterimLength);
+              lastInterimLength = 0;
+            }
+
+            let currentVal = textareaElement.value;
+            if (currentVal && !currentVal.endsWith(" ") && !currentVal.endsWith("\n")) {
+              currentVal += " ";
+            }
+            textareaElement.value = currentVal + finalTranscript.trim() + " ";
+          } else if (interimTranscript) {
+            if (lastInterimLength > 0) {
+              textareaElement.value = textareaElement.value.slice(0, -lastInterimLength);
+            }
+
+            let currentVal = textareaElement.value;
+            if (currentVal && !currentVal.endsWith(" ") && !currentVal.endsWith("\n")) {
+              currentVal += " ";
+            }
+            textareaElement.value = currentVal + interimTranscript;
+            lastInterimLength = interimTranscript.length;
           }
 
-          textareaElement.value = initialText + accumulatedFinal + interimTranscript;
           textareaElement.style.height = "auto";
           textareaElement.style.height = textareaElement.scrollHeight + "px";
         };
@@ -1173,6 +1188,10 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         function stopDictation() {
+          if (lastInterimLength > 0) {
+            textareaElement.value = textareaElement.value.slice(0, -lastInterimLength);
+            lastInterimLength = 0;
+          }
           isDictating = false;
           activeRecognition = null;
           btnElement.classList.remove("dictating");
