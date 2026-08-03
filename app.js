@@ -276,19 +276,24 @@ const Renderer = {
     // Extract image markdown tags OR raw data:image Base64 strings OR short img-xxx IDs
     const images = [];
 
-    // Pass 1: Markdown image syntax ![alt](url) with optional spaces or line breaks
-    let cleanText = text.replace(/!\[[\s\S]*?\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)/gi, (match, dataUrl) => {
+    // Pass 1: Markdown image syntax ![alt|w=320px](url) or ![alt](url)
+    let cleanText = text.replace(/!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)/gi, (match, altText, dataUrl) => {
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
       if (actualUrl && !actualUrl.startsWith("img-")) {
-        images.push(actualUrl);
+        let widthStyle = "";
+        const wMatch = altText.match(/w=(\d+px|\d+%)/i) || altText.match(/(\d+px|\d+%);?/i);
+        if (wMatch) {
+          widthStyle = `width: ${wMatch[1]};`;
+        }
+        images.push({ dataUrl: actualUrl, widthStyle });
         return `___IMG_PLACEHOLDER_${images.length - 1}___`;
       }
       return "";
     });
 
-    // Pass 2: Raw unparsed data:image Base64 URLs (e.g. if markdown parens were stripped or altered)
+    // Pass 2: Raw unparsed data:image Base64 URLs
     cleanText = cleanText.replace(/(data:image\/[a-zA-Z0-9\/+;=,-]+)/gi, (match, dataUrl) => {
-      images.push(dataUrl);
+      images.push({ dataUrl, widthStyle: "" });
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
@@ -296,15 +301,16 @@ const Renderer = {
     escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
                      .replace(/\n/g, '<br>');
 
-    // Restore images as rounded journal-entry-img elements
-    images.forEach((dataUrl, idx) => {
-      const imgTag = `<img class="journal-entry-img" src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" />`;
+    // Restore images wrapped in interactive resizable container
+    images.forEach(({ dataUrl, widthStyle }, idx) => {
+      const styleAttr = widthStyle ? `style="${widthStyle}"` : '';
+      const imgTag = `<div class="journal-img-container" data-img-idx="${idx}"><div class="img-resize-bar" title="Quick size presets"><button type="button" class="btn-img-size" data-size="280px">280px</button><button type="button" class="btn-img-size" data-size="450px">450px</button><button type="button" class="btn-img-size" data-size="100%">100%</button></div><img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /><div class="img-resize-handle" title="Drag corner to resize image">⇲</div></div>`;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
-    // Strip all adjacent <br> tags surrounding block images so display: block margin controls vertical spacing cleanly
-    escaped = escaped.replace(/(<br>\s*)+<img class="journal-entry-img"/g, '<img class="journal-entry-img"');
-    escaped = escaped.replace(/<img class="journal-entry-img"([^>]*)\/>(\s*<br>)+/g, '<img class="journal-entry-img"$1/>');
+    // Strip adjacent <br> tags surrounding block image containers
+    escaped = escaped.replace(/(<br>\s*)+<div class="journal-img-container"/g, '<div class="journal-img-container"');
+    escaped = escaped.replace(/<div class="journal-img-container"([^>]*)\/>(\s*<br>)+/g, '<div class="journal-img-container"$1/>');
 
     return escaped;
   },
@@ -1220,6 +1226,102 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Image Resizing Helper (Updates markdown tag in raw & victorian content)
+  async function updateImageWidthInEntry(cardId, container, newWidthStyle) {
+    const entry = DB.getPrivateEntries().find(e => e.id === cardId);
+    if (!entry) return;
+
+    const img = container.querySelector(".journal-entry-img");
+    const srcUrl = img ? img.getAttribute("src") : "";
+    if (!srcUrl) return;
+
+    const updateWidthInText = (text) => {
+      if (!text) return "";
+      // Update existing markdown tag or raw dataUrl match
+      let updated = text.replace(/!\[([\s\S]*?)\]\(([^)]+)\)/gi, (match, alt, url) => {
+        if (url.trim() === srcUrl.trim()) {
+          let cleanAlt = alt.replace(/\|w=(\d+px|\d+%)/gi, "").replace(/\|(\d+px|\d+%)/gi, "").trim();
+          if (!cleanAlt) cleanAlt = "attached-image";
+          return `![${cleanAlt}|w=${newWidthStyle}](${url.trim()})`;
+        }
+        return match;
+      });
+
+      // If standalone raw URL without markdown tag, wrap it in markdown tag with width
+      if (updated.includes(srcUrl) && !updated.includes(`(${srcUrl})`)) {
+        updated = updated.replace(srcUrl, `![attached-image|w=${newWidthStyle}](${srcUrl})`);
+      }
+      return updated;
+    };
+
+    const updatedRaw = updateWidthInText(entry.rawContent);
+    const updatedVictorian = updateWidthInText(entry.victorianContent);
+
+    entry.rawContent = updatedRaw;
+    entry.victorianContent = updatedVictorian;
+
+    await DB.saveEntry(entry, updatedRaw, updatedVictorian, true);
+    UI.showNotification(`Image resized to ${newWidthStyle}.`);
+  }
+
+  // Handle Quick Size Preset Button Clicks
+  timelineFeed.addEventListener("click", async (e) => {
+    const sizeBtn = e.target.closest(".btn-img-size");
+    if (!sizeBtn || !reminisceUnlocked) return;
+
+    e.stopPropagation();
+    const container = sizeBtn.closest(".journal-img-container");
+    const row = sizeBtn.closest(".timeline-row");
+    if (!container || !row) return;
+
+    const img = container.querySelector(".journal-entry-img");
+    const newSize = sizeBtn.dataset.size;
+    if (!img || !newSize) return;
+
+    img.style.width = newSize;
+    await updateImageWidthInEntry(row.dataset.id, container, newSize);
+  });
+
+  // Handle Corner Drag Handle Resizing (Mouse & Touch)
+  let isResizingImage = false;
+  timelineFeed.addEventListener("mousedown", (e) => {
+    const handle = e.target.closest(".img-resize-handle");
+    if (!handle || !reminisceUnlocked) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const container = handle.closest(".journal-img-container");
+    const row = handle.closest(".timeline-row");
+    const img = container ? container.querySelector(".journal-entry-img") : null;
+    if (!container || !row || !img) return;
+
+    isResizingImage = true;
+    const startX = e.clientX;
+    const startWidth = img.getBoundingClientRect().width;
+    const parentWidth = container.parentElement ? container.parentElement.getBoundingClientRect().width : window.innerWidth;
+
+    function onMouseMove(moveEvent) {
+      if (!isResizingImage) return;
+      const deltaX = moveEvent.clientX - startX;
+      let newWidth = Math.max(120, Math.min(startWidth + deltaX, parentWidth));
+      img.style.width = `${Math.round(newWidth)}px`;
+    }
+
+    async function onMouseUp() {
+      if (!isResizingImage) return;
+      isResizingImage = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+
+      const finalWidth = `${Math.round(img.getBoundingClientRect().width)}px`;
+      await updateImageWidthInEntry(row.dataset.id, container, finalWidth);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  });
 
   if (btnNewSpeech && newTextarea) {
     setupVoiceDictation(btnNewSpeech, newTextarea);
