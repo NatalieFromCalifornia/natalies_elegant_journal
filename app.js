@@ -89,8 +89,23 @@ const DB = {
       });
     };
 
-    const fullRawContent = resolveImages(rawContent);
-    const fullVictorianContent = resolveImages(victorianContent);
+    let fullRawContent = resolveImages(rawContent);
+    let fullVictorianContent = resolveImages(victorianContent);
+
+    // Synchronize attached images from raw content to victorian content if missing
+    if (fullRawContent) {
+      const rawImageMatches = fullRawContent.match(/!\[.*?\]\((data:image\/[^)]+|img-[^)]+|https?:\/\/[^)]+)\)/gi);
+      if (rawImageMatches) {
+        rawImageMatches.forEach((imgTag) => {
+          const urlMatch = imgTag.match(/\(([^)]+)\)/);
+          const urlOrId = urlMatch ? urlMatch[1].trim() : "";
+          if (urlOrId && !fullVictorianContent.includes(urlOrId)) {
+            fullVictorianContent = (fullVictorianContent ? fullVictorianContent.trim() + "\n\n" : "") + imgTag;
+          }
+        });
+      }
+    }
+
     const publicContent = maskSecrets(fullVictorianContent);
     const now = new Date().toISOString();
     const updatedAt = (preserveUpdatedAt && entry.updatedAt) ? entry.updatedAt : now;

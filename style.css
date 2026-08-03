@@ -831,8 +831,10 @@ body.gander-mode .redacted-text:hover {
   border-radius: 12px;
   margin: 10px 0;
   box-shadow: 0 4px 16px rgba(46, 43, 42, 0.08);
-  border: 1px solid rgba(46, 43, 42, 0.06);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  border: 1px solid rgba(46, 43, 42, 0.08);
+  /* Old-timey warm parchment yellow tint filter */
+  filter: sepia(0.22) contrast(0.96) brightness(0.98) hue-rotate(-8deg);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
   overflow-wrap: anywhere;
   word-break: break-all;
 }
@@ -840,6 +842,7 @@ body.gander-mode .redacted-text:hover {
 .journal-entry-img:hover {
   transform: scale(1.01);
   box-shadow: 0 6px 22px rgba(46, 43, 42, 0.13);
+  filter: sepia(0.08) contrast(0.98) brightness(1.0);
 }
 
 /* Mobile & Touch Selection Improvements */
