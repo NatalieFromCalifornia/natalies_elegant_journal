@@ -309,10 +309,19 @@ const Renderer = {
     escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
                      .replace(/\n/g, '<br>');
 
-    // Restore images wrapped in interactive resizable container
+    // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
     images.forEach(({ dataUrl, widthStyle }, idx) => {
       const styleAttr = widthStyle ? `style="${widthStyle}"` : '';
-      const imgTag = `<div class="journal-img-container" data-img-idx="${idx}"><div class="img-resize-bar" title="Quick size presets"><button type="button" class="btn-img-size" data-size="280px">280px</button><button type="button" class="btn-img-size" data-size="450px">450px</button><button type="button" class="btn-img-size" data-size="100%">100%</button></div><img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /><div class="img-resize-handle" title="Drag corner to resize image">⇲</div></div>`;
+      const controlsHtml = reminisceUnlocked ? `
+        <div class="img-resize-bar" title="Quick size presets">
+          <button type="button" class="btn-img-size" data-size="280px">280px</button>
+          <button type="button" class="btn-img-size" data-size="450px">450px</button>
+          <button type="button" class="btn-img-size" data-size="100%">100%</button>
+        </div>
+        <div class="img-resize-handle" title="Drag corner to resize image">⇲</div>
+      ` : '';
+
+      const imgTag = `<div class="journal-img-container" data-img-idx="${idx}">${controlsHtml}<img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /></div>`;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
@@ -1240,29 +1249,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const entry = DB.getPrivateEntries().find(e => e.id === cardId);
     if (!entry) return;
 
-    const img = container.querySelector(".journal-entry-img");
-    const srcUrl = img ? img.getAttribute("src") : "";
-    if (!srcUrl) return;
+    const targetImgIdx = parseInt(container.dataset.imgIdx || "0", 10);
 
     const updateWidthInText = (text) => {
       if (!text) return "";
-      let foundMatch = false;
-      let updated = text.replace(/!\[([\s\S]*?)\]\(([^)]+)\)/gi, (match, alt, url) => {
-        const cleanUrl = url.trim();
-        const resolvedUrl = (cleanUrl.startsWith("img-") && tempImageStore[cleanUrl]) ? tempImageStore[cleanUrl] : cleanUrl;
-        if (cleanUrl === srcUrl.trim() || resolvedUrl === srcUrl.trim()) {
-          foundMatch = true;
+      let currentIdx = 0;
+      let replaced = false;
+
+      // 1. Try replacing markdown image tag ![alt](url)
+      let updated = text.replace(/!\[([\s\S]*?)\]\(\s*([^)]+)\s*\)/gi, (match, alt, url) => {
+        if (currentIdx === targetImgIdx) {
+          replaced = true;
+          currentIdx++;
           let cleanAlt = alt.replace(/\|w=(\d+px|\d+%)/gi, "").replace(/\|(\d+px|\d+%)/gi, "").trim();
           if (!cleanAlt) cleanAlt = "attached-image";
-          return `![${cleanAlt}|w=${newWidthStyle}](${cleanUrl})`;
+          return `![${cleanAlt}|w=${newWidthStyle}](${url.trim()})`;
         }
+        currentIdx++;
         return match;
       });
 
-      // If standalone raw URL without markdown tag, wrap it in markdown tag with width
-      if (!foundMatch && updated.includes(srcUrl)) {
-        updated = updated.replace(srcUrl, `![attached-image|w=${newWidthStyle}](${srcUrl})`);
+      // 2. Fallback: If no markdown tag was matched at targetIdx, replace standalone data:image Base64 URL
+      if (!replaced) {
+        currentIdx = 0;
+        updated = text.replace(/(data:image\/[a-zA-Z0-9\/+;=,-]+)/gi, (match) => {
+          if (currentIdx === targetImgIdx) {
+            replaced = true;
+            currentIdx++;
+            return `![attached-image|w=${newWidthStyle}](${match})`;
+          }
+          currentIdx++;
+          return match;
+        });
       }
+
       return updated;
     };
 
