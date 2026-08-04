@@ -83,24 +83,32 @@ const DB = {
     // Resolve short img-xxx IDs to full Base64 URLs before writing to DB
     const resolveImages = (text) => {
       if (!text) return "";
-      return text.replace(/!\[.*?\]\((img-[^)]+|data:image\/[^)]+)\)/g, (match, urlOrId) => {
+      return text.replace(/!\[([\s\S]*?)\]\((img-[^)]+|data:image\/[^)]+|https?:\/\/[^)]+)\)/g, (match, altText, urlOrId) => {
         const fullUrl = (urlOrId.startsWith("img-") && tempImageStore[urlOrId]) ? tempImageStore[urlOrId] : urlOrId;
-        return `![attached-image](${fullUrl})`;
+        const cleanAlt = altText || "attached-image";
+        return `![${cleanAlt}](${fullUrl})`;
       });
     };
 
     let fullRawContent = resolveImages(rawContent);
     let fullVictorianContent = resolveImages(victorianContent);
 
-    // Synchronize attached images from raw content to victorian content if missing
+    // Synchronize attached images & custom width tags from raw content to victorian content
     if (fullRawContent) {
-      const rawImageMatches = fullRawContent.match(/!\[.*?\]\((data:image\/[^)]+|img-[^)]+|https?:\/\/[^)]+)\)/gi);
+      const rawImageMatches = fullRawContent.match(/!\[([\s\S]*?)\]\((data:image\/[^)]+|img-[^)]+|https?:\/\/[^)]+)\)/gi);
       if (rawImageMatches) {
         rawImageMatches.forEach((imgTag) => {
           const urlMatch = imgTag.match(/\(([^)]+)\)/);
+          const altMatch = imgTag.match(/!\[([\s\S]*?)\]/);
           const urlOrId = urlMatch ? urlMatch[1].trim() : "";
-          if (urlOrId && !fullVictorianContent.includes(urlOrId)) {
-            fullVictorianContent = (fullVictorianContent ? fullVictorianContent.trim() + "\n\n" : "") + imgTag;
+          const rawAltText = altMatch ? altMatch[1].trim() : "attached-image";
+          if (urlOrId) {
+            const escapedUrl = urlOrId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (fullVictorianContent.includes(urlOrId)) {
+              fullVictorianContent = fullVictorianContent.replace(new RegExp(`!\\[[\\s\\S]*?\\]\\(${escapedUrl}\\)`, 'gi'), `![${rawAltText}](${urlOrId})`);
+            } else {
+              fullVictorianContent = (fullVictorianContent ? fullVictorianContent.trim() + "\n\n" : "") + imgTag;
+            }
           }
         });
       }
@@ -1238,18 +1246,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const updateWidthInText = (text) => {
       if (!text) return "";
-      // Update existing markdown tag or raw dataUrl match
+      let foundMatch = false;
       let updated = text.replace(/!\[([\s\S]*?)\]\(([^)]+)\)/gi, (match, alt, url) => {
-        if (url.trim() === srcUrl.trim()) {
+        const cleanUrl = url.trim();
+        const resolvedUrl = (cleanUrl.startsWith("img-") && tempImageStore[cleanUrl]) ? tempImageStore[cleanUrl] : cleanUrl;
+        if (cleanUrl === srcUrl.trim() || resolvedUrl === srcUrl.trim()) {
+          foundMatch = true;
           let cleanAlt = alt.replace(/\|w=(\d+px|\d+%)/gi, "").replace(/\|(\d+px|\d+%)/gi, "").trim();
           if (!cleanAlt) cleanAlt = "attached-image";
-          return `![${cleanAlt}|w=${newWidthStyle}](${url.trim()})`;
+          return `![${cleanAlt}|w=${newWidthStyle}](${cleanUrl})`;
         }
         return match;
       });
 
       // If standalone raw URL without markdown tag, wrap it in markdown tag with width
-      if (updated.includes(srcUrl) && !updated.includes(`(${srcUrl})`)) {
+      if (!foundMatch && updated.includes(srcUrl)) {
         updated = updated.replace(srcUrl, `![attached-image|w=${newWidthStyle}](${srcUrl})`);
       }
       return updated;
@@ -1262,6 +1273,7 @@ document.addEventListener("DOMContentLoaded", () => {
     entry.victorianContent = updatedVictorian;
 
     await DB.saveEntry(entry, updatedRaw, updatedVictorian, true);
+    renderTimeline();
     UI.showNotification(`Image resized to ${newWidthStyle}.`);
   }
 
