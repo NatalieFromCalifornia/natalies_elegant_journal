@@ -762,10 +762,24 @@ document.addEventListener("DOMContentLoaded", () => {
     newEntryRow.scrollIntoView({ behavior: "smooth" });
   });
 
+  // Auto-save draft protection as you type or dictate
+  newTextarea.addEventListener("input", () => {
+    localStorage.setItem("ej_draft_new_entry", newTextarea.value);
+  });
+
+  // Restore saved draft if present on startup
+  const savedDraft = localStorage.getItem("ej_draft_new_entry");
+  if (savedDraft && savedDraft.trim()) {
+    newTextarea.value = savedDraft;
+    newEntryRow.style.display = "grid";
+    initTextareaAutoResize(newTextarea);
+  }
+
   // Cancel Composing slot
   btnNewCancel.addEventListener("click", () => {
     newEntryRow.style.display = "none";
     newTextarea.value = "";
+    localStorage.removeItem("ej_draft_new_entry");
     hideFloatingRedact();
   });
 
@@ -796,6 +810,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await DB.saveEntry(newEntryObj, rawContent, rewritten);
       
       newTextarea.value = "";
+      localStorage.removeItem("ej_draft_new_entry");
       newCardLoading.style.display = "none";
       newEntryRow.style.display = "none";
       
