@@ -315,8 +315,11 @@ const Renderer = {
     });
 
     let escaped = this.escapeHtml(cleanText);
-    escaped = escaped.replace(/\|\|(.*?)\|\|/g, '<span class="redacted-text" data-secret="$1" title="Click to unredact secret">$1</span>')
-                     .replace(/\n/g, '<br>');
+    escaped = escaped.replace(/\|\|(.*?)\|\|/g, (match, secret) => {
+      const attrSecret = secret.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      return `<span class="redacted-text" data-secret="${attrSecret}" title="Click to unredact secret">${secret}</span>`;
+    })
+    .replace(/\n/g, '<br>');
 
     // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
     images.forEach(({ dataUrl, widthStyle }, idx) => {
