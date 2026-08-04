@@ -103,9 +103,18 @@ const DB = {
           const urlOrId = urlMatch ? urlMatch[1].trim() : "";
           const rawAltText = altMatch ? altMatch[1].trim() : "attached-image";
           if (urlOrId) {
-            const escapedUrl = urlOrId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             if (fullVictorianContent.includes(urlOrId)) {
-              fullVictorianContent = fullVictorianContent.replace(new RegExp(`!\\[[\\s\\S]*?\\]\\(${escapedUrl}\\)`, 'gi'), `![${rawAltText}](${urlOrId})`);
+              // Safely replace alt text in fullVictorianContent using string index search (NO new RegExp!)
+              const targetSub = `(${urlOrId})`;
+              const targetIdx = fullVictorianContent.indexOf(targetSub);
+              if (targetIdx !== -1) {
+                const startIdx = fullVictorianContent.lastIndexOf("![", targetIdx);
+                if (startIdx !== -1) {
+                  const before = fullVictorianContent.slice(0, startIdx);
+                  const after = fullVictorianContent.slice(targetIdx + targetSub.length);
+                  fullVictorianContent = `${before}![${rawAltText}]${targetSub}${after}`;
+                }
+              }
             } else {
               fullVictorianContent = (fullVictorianContent ? fullVictorianContent.trim() + "\n\n" : "") + imgTag;
             }
