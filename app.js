@@ -65,7 +65,8 @@ const DB = {
     return entries ? JSON.parse(entries) : [];
   },
   savePublicEntries(entries) {
-    entries.sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+    // Sort NEWEST FIRST (descending date order) so new entries appear at top of timeline
+    entries.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
     localStorage.setItem("ej_entries_public", JSON.stringify(entries));
   },
 
@@ -75,7 +76,8 @@ const DB = {
     return entries ? JSON.parse(entries) : [];
   },
   savePrivateEntries(entries) {
-    entries.sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+    // Sort NEWEST FIRST (descending date order) so new entries appear at top of timeline
+    entries.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
     localStorage.setItem("ej_entries_private", JSON.stringify(entries));
   },
 
@@ -801,10 +803,15 @@ document.addEventListener("DOMContentLoaded", () => {
     btnNewCancel.disabled = true;
     newCardLoading.style.display = "flex";
 
+    let rewritten = rawContent;
     try {
-      const rewritten = await AIEngine.rewrite(rawContent);
+      rewritten = await AIEngine.rewrite(rawContent);
+    } catch (e) {
+      console.warn("AI rewrite fallback to direct text:", e);
+    }
+
+    try {
       const newId = "ej-" + Date.now();
-      
       const newEntryObj = {
         id: newId,
         date: new Date().toISOString()
@@ -822,8 +829,10 @@ document.addEventListener("DOMContentLoaded", () => {
       btnNewCancel.disabled = false;
 
       renderTimeline();
+      UI.showNotification("New reflection recorded.");
     } catch (e) {
-      UI.showNotification(e.message || "Transcription failed.");
+      console.error("Save entry error:", e);
+      UI.showNotification(e.message || "Failed to save entry.");
       isTranscribing = false;
       btnNewDone.disabled = false;
       btnNewCancel.disabled = false;
@@ -1061,12 +1070,19 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentCancelBtn) currentCancelBtn.disabled = true;
         if (loadingState) loadingState.style.display = "flex";
 
+        let rewritten = updatedValue;
         try {
-          const rewritten = await AIEngine.rewrite(updatedValue);
+          rewritten = await AIEngine.rewrite(updatedValue);
+        } catch(err) {
+          console.warn("Edit rewrite fallback to direct text:", err);
+        }
+
+        try {
           await DB.saveEntry(entry, updatedValue, rewritten);
           renderTimeline();
+          UI.showNotification("Reflection updated.");
         } catch(err) {
-          console.error("Edit rewrite error:", err);
+          console.error("Edit save error:", err);
           UI.showNotification(err.message || "Rewrite failed.");
         } finally {
           isTranscribing = false;
