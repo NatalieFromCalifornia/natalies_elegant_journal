@@ -40,6 +40,12 @@ function waitForFirebase() {
 let db = null; 
 let auth = null; 
 let ownerEmail = ""; // Configured in firebase_config.json
+function safeParseDate(val) {
+  if (!val) return 0;
+  const t = new Date(val).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
 const DB = {
   getSettings() {
     const settingsRaw = localStorage.getItem("ej_settings");
@@ -65,8 +71,8 @@ const DB = {
     return entries ? JSON.parse(entries) : [];
   },
   savePublicEntries(entries) {
-    // Sort NEWEST FIRST (descending date order) so new entries appear at top of timeline
-    entries.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    // Sort NEWEST FIRST (descending date order) using safeParseDate
+    entries.sort((a, b) => safeParseDate(b.date || b.createdAt || b.updatedAt) - safeParseDate(a.date || a.createdAt || a.updatedAt));
     localStorage.setItem("ej_entries_public", JSON.stringify(entries));
   },
 
@@ -76,8 +82,8 @@ const DB = {
     return entries ? JSON.parse(entries) : [];
   },
   savePrivateEntries(entries) {
-    // Sort NEWEST FIRST (descending date order) so new entries appear at top of timeline
-    entries.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    // Sort NEWEST FIRST (descending date order) using safeParseDate
+    entries.sort((a, b) => safeParseDate(b.date || b.createdAt || b.updatedAt) - safeParseDate(a.date || a.createdAt || a.updatedAt));
     localStorage.setItem("ej_entries_private", JSON.stringify(entries));
   },
 
@@ -215,16 +221,32 @@ const DB = {
   async fetchPublicCloudEntries() {
     if (!db) return null;
     try {
-      const colRef = window.Firebase.collection(db, "natalie_journal_public_entries");
-      const querySnapshot = await window.Firebase.getDocs(colRef);
-      const cloudEntries = [];
-      querySnapshot.forEach(doc => {
-        cloudEntries.push(doc.data());
-      });
-      if (cloudEntries.length > 0) {
-        this.savePublicEntries(cloudEntries);
-        return cloudEntries;
+      const collectionsToScan = ["natalie_journal_public_entries", "public_entries"];
+      const localEntries = this.getPublicEntries();
+      const entryMap = new Map();
+      localEntries.forEach(e => { if (e && e.id) entryMap.set(e.id, e); });
+
+      for (const colName of collectionsToScan) {
+        try {
+          const colRef = window.Firebase.collection(db, colName);
+          const querySnapshot = await window.Firebase.getDocs(colRef);
+          querySnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && (data.id || doc.id)) {
+              const docId = data.id || doc.id;
+              data.id = docId;
+              const existing = entryMap.get(docId);
+              if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
+                entryMap.set(docId, data);
+              }
+            }
+          });
+        } catch(e) {}
       }
+
+      const mergedEntries = Array.from(entryMap.values());
+      this.savePublicEntries(mergedEntries);
+      return mergedEntries;
     } catch (err) {
       console.error("Public cloud fetch failed, using offline cache:", err);
     }
@@ -234,16 +256,38 @@ const DB = {
   async fetchPrivateCloudEntries() {
     if (!db || !auth || !auth.currentUser) return null;
     try {
-      const colRef = window.Firebase.collection(db, "natalie_journal_private_entries");
-      const querySnapshot = await window.Firebase.getDocs(colRef);
-      const cloudEntries = [];
-      querySnapshot.forEach(doc => {
-        cloudEntries.push(doc.data());
-      });
-      if (cloudEntries.length > 0) {
-        this.savePrivateEntries(cloudEntries);
-        return cloudEntries;
+      const collectionsToScan = [
+        "natalie_journal_private_entries",
+        "natalies_journal_entries",
+        "private_entries",
+        "entries"
+      ];
+      
+      const localEntries = this.getPrivateEntries();
+      const entryMap = new Map();
+      localEntries.forEach(e => { if (e && e.id) entryMap.set(e.id, e); });
+
+      for (const colName of collectionsToScan) {
+        try {
+          const colRef = window.Firebase.collection(db, colName);
+          const querySnapshot = await window.Firebase.getDocs(colRef);
+          querySnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && (data.id || doc.id)) {
+              const docId = data.id || doc.id;
+              data.id = docId;
+              const existing = entryMap.get(docId);
+              if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
+                entryMap.set(docId, data);
+              }
+            }
+          });
+        } catch(e) {}
       }
+
+      const mergedEntries = Array.from(entryMap.values());
+      this.savePrivateEntries(mergedEntries);
+      return mergedEntries;
     } catch (err) {
       console.error("Private cloud fetch failed, using offline cache:", err);
     }
@@ -518,6 +562,7 @@ const AIEngine = {
 document.addEventListener("DOMContentLoaded", () => {
   // Elements
   const btnUnlock = document.getElementById("btn-unlock");
+  const btnHeaderAdd = document.getElementById("btn-header-add");
   const btnSettings = document.getElementById("btn-settings");
   const btnHeaderLogout = document.getElementById("btn-header-logout");
   const headerLogoutGroup = document.getElementById("header-logout-group");
@@ -650,11 +695,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (reminisceUnlocked) {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
+      if (btnHeaderAdd) btnHeaderAdd.style.display = "inline-flex";
       btnSettings.style.display = "flex";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "flex";
     } else {
       document.body.classList.add("gander-mode");
       btnUnlock.style.display = "flex";
+      if (btnHeaderAdd) btnHeaderAdd.style.display = "none";
       btnSettings.style.display = "none";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
     }
@@ -747,15 +794,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Open Composition Box
-  btnRecordNew.addEventListener("click", () => {
+  // Open Composition Box at top of timeline
+  function openComposer() {
     if (!reminisceUnlocked) return;
 
     newEntryRow.style.display = "grid";
-    newTextarea.value = "";
     newTextarea.focus();
     
-    window.getSelection().removeAllRanges();
+    if (window.getSelection) {
+      window.getSelection().removeAllRanges();
+    }
     hideFloatingRedact();
 
     initTextareaAutoResize(newTextarea);
@@ -764,8 +812,15 @@ document.addEventListener("DOMContentLoaded", () => {
     newDateDay.textContent = parts.monthDay;
     newDateYear.textContent = parts.year;
 
-    newEntryRow.scrollIntoView({ behavior: "smooth" });
-  });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  if (btnHeaderAdd) {
+    btnHeaderAdd.addEventListener("click", openComposer);
+  }
+  if (btnRecordNew) {
+    btnRecordNew.addEventListener("click", openComposer);
+  }
 
   // Auto-save draft protection as you type or dictate
   newTextarea.addEventListener("input", () => {
