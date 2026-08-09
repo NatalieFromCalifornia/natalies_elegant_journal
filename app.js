@@ -40,6 +40,7 @@ function waitForFirebase() {
 let db = null; 
 let auth = null; 
 let ownerEmail = ""; // Configured in firebase_config.json
+let reminisceUnlocked = false; // Top-level scope so Renderer.render can access it without ReferenceError
 function safeParseDate(val) {
   if (!val) return 0;
   const t = new Date(val).getTime();
@@ -601,7 +602,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeSelection = null;
   let activeUnredactTarget = null;
   let isTranscribing = false;
-  let reminisceUnlocked = false;
 
   // Premium temporary snackbar helper
   const UI = {

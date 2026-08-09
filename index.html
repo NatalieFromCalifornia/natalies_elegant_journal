@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4.7">
+  <link rel="stylesheet" href="style.css?v=4.8">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -35,7 +35,7 @@
           <!-- Add Entry button in top header bar -->
           <button id="btn-header-add" class="btn-menu btn-header-add" title="Record New Entry" style="display: none;">
             <svg class="plus-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            <span>+ ENTRY</span>
+            <span>ENTRY</span>
           </button>
 
           <!-- MENU button shown only in Reminisce Mode -->
@@ -59,12 +59,7 @@
     <!-- Timeline Container -->
     <main class="flow-container">
       <div class="timeline-container">
-        <!-- The dynamic timeline feed -->
-        <div id="timeline-feed" class="timeline-feed">
-          <!-- Entries loaded dynamically in row format -->
-        </div>
-
-        <!-- Inline New Entry Row (Hidden by default, shown on click of bottom button) -->
+        <!-- Inline New Entry Row (Placed at the VERY TOP of the timeline feed) -->
         <div id="new-entry-row" class="timeline-row editing-row" style="display: none;">
           <div class="timeline-date">
             <span id="new-date-day" class="date-day">-- --</span>
@@ -92,6 +87,11 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- The dynamic timeline feed -->
+        <div id="timeline-feed" class="timeline-feed">
+          <!-- Entries loaded dynamically in row format -->
         </div>
 
         <!-- Welcome State if Empty -->
@@ -197,6 +197,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=4.7"></script>
+  <script src="app.js?v=4.8"></script>
 </body>
 </html>
