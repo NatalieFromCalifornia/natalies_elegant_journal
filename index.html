@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4.8">
+  <link rel="stylesheet" href="style.css?v=4.9">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -176,9 +176,27 @@
               </div>
 
               <div class="form-group">
+                <label for="settings-persona-slider">PERSONA INTENSITY DIAL</label>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
+                  <input type="range" id="settings-persona-slider" min="1" max="5" step="1" value="2" style="flex: 1; cursor: pointer; accent-color: var(--accent-color);">
+                  <span id="persona-step-label" style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; color: var(--ink-color); min-width: 150px; text-transform: uppercase;">Step 2: Grounded Classical</span>
+                </div>
+                <span id="persona-step-desc" class="help-text" style="display: block; margin-top: 4px; font-style: italic;">Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.</span>
+              </div>
+
+              <div class="form-group">
                 <label for="settings-system-instruction">PERSONA PROMPT</label>
-                <textarea id="settings-system-instruction" class="settings-textarea" rows="6"></textarea>
+                <textarea id="settings-system-instruction" class="settings-textarea" rows="5"></textarea>
                 <span class="help-text">The system rules governing the Victorian rewrite script.</span>
+              </div>
+
+              <div class="form-group" style="border-top: 1px dashed var(--border-color, #d4ceb8); padding-top: 12px; margin-top: 16px;">
+                <label>BATCH REWRITE ACTIONS</label>
+                <span class="help-text" style="display: block; margin-bottom: 10px;">Re-run the AI transcription on your stored entries using your current persona dial settings.</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                  <button type="button" id="btn-rewrite-latest" class="btn-retro" style="flex: 1; min-width: 150px;">✨ REWRITE LATEST</button>
+                  <button type="button" id="btn-rewrite-all" class="btn-retro" style="flex: 1; min-width: 150px; color: var(--accent-color, #8b5a2b);">🔄 REWRITE ALL</button>
+                </div>
               </div>
             </div>
           <div class="modal-footer">
@@ -197,6 +215,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=4.8"></script>
+  <script src="app.js?v=4.9"></script>
 </body>
 </html>

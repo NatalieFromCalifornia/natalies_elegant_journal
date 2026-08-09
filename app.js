@@ -704,6 +704,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btnHeaderAdd) btnHeaderAdd.style.display = "none";
       btnSettings.style.display = "none";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
+
+      // Close input form on logout
+      if (newEntryRow) newEntryRow.style.display = "none";
+      if (newTextarea) newTextarea.value = "";
+      localStorage.removeItem("ej_draft_new_entry");
+      hideFloatingRedact();
     }
   }
 
@@ -1601,6 +1607,156 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Persona Dial & Presets
+  const PERSONA_PRESETS = {
+    1: {
+      label: "Step 1: Minimal Period Texture",
+      desc: "Clean, clear, sincere 19th-century prose. Minimal archaic phrasing, grounded observations, plain direct speech, zero melodrama.",
+      prompt: `You are a thoughtful 19th-century diarist writing in a personal journal.\nRewrite the provided raw modern text into clean, sincere 19th-century prose.\n\nStrict Rules:\n- Keep the language grounded, direct, and authentic.\n- DO NOT use theatrical clichés or melodramatic posturing (no "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Maintain all modern facts, names, dates, and image tags.\n- If raw text has multiple sentences without explicit punctuation, break them into natural, clean sentences.`
+    },
+    2: {
+      label: "Step 2: Grounded Classical",
+      desc: "Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.",
+      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided modern text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (e.g. NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- Preserve all images, names, numbers, and facts from the raw entry.\n- Auto-infer natural sentence boundaries from speech.`
+    },
+    3: {
+      label: "Step 3: Elegant Literary",
+      desc: "Poised, eloquent 19th-century prose. Richer sentence structure, thoughtful cadence, dignified tone.",
+      prompt: `You are an eloquent 19th-century diarist recording life reflections.\nRewrite the provided modern text into poised, elegant 19th-century journal prose.\n\nStrict Rules:\n- Use thoughtful 19th-century cadence while avoiding theatrical clichés ("alas", "methinks", "hark", "doth").\n- Keep the narrative authentic, dignified, and expressive.\n- Preserve all image tags, names, dates, and modern facts exactly as stated.`
+    },
+    4: {
+      label: "Step 4: Formal 19th-Century",
+      desc: "Formal 19th-century prose. Classical vocabulary, measured phrasing, traditional journal structure.",
+      prompt: `You are a formal 19th-century chronicler keeping a private journal.\nRewrite the provided text into formal 19th-century prose with classical vocabulary and measured phrasing.\n\nStrict Rules:\n- Maintain a traditional period journal structure.\n- Avoid silly melodramatic clichés ("alas", "methinks").\n- Preserve all image attachments, dates, names, and factual details.`
+    },
+    5: {
+      label: "Step 5: High Period Atmosphere",
+      desc: "Immersive, highly atmospheric 19th-century prose with rich period vocabulary and traditional cadence.",
+      prompt: `You are an atmospheric 19th-century writer keeping a deeply reflective journal.\nRewrite the provided text into immersive, rich 19th-century period prose.\n\nStrict Rules:\n- Use rich 19th-century vocabulary and atmospheric cadence while keeping prose coherent.\n- Preserve all images, facts, names, and original details.`
+    }
+  };
+
+  const settingsPersonaSlider = document.getElementById("settings-persona-slider");
+  const personaStepLabel = document.getElementById("persona-step-label");
+  const personaStepDesc = document.getElementById("persona-step-desc");
+  const btnRewriteLatest = document.getElementById("btn-rewrite-latest");
+  const btnRewriteAll = document.getElementById("btn-rewrite-all");
+
+  function updatePersonaSliderUI(stepVal) {
+    const preset = PERSONA_PRESETS[stepVal] || PERSONA_PRESETS[2];
+    if (personaStepLabel) personaStepLabel.textContent = preset.label;
+    if (personaStepDesc) personaStepDesc.textContent = preset.desc;
+    if (settingsSystemInstruction) settingsSystemInstruction.value = preset.prompt;
+  }
+
+  if (settingsPersonaSlider) {
+    settingsPersonaSlider.addEventListener("input", (e) => {
+      updatePersonaSliderUI(e.target.value);
+    });
+  }
+
+  function loadSettingsIntoForm() {
+    const settings = DB.getSettings();
+    settingsSystemInstruction.value = settings.systemInstruction;
+    settingsApiKey.value = settings.apiKey || "";
+    settingsModel.value = settings.model || "gemini-3.5-flash";
+    
+    let matchedStep = 2;
+    for (let s = 1; s <= 5; s++) {
+      if (settings.systemInstruction === PERSONA_PRESETS[s].prompt) {
+        matchedStep = s;
+        break;
+      }
+    }
+    if (settingsPersonaSlider) settingsPersonaSlider.value = matchedStep;
+    if (personaStepLabel) personaStepLabel.textContent = PERSONA_PRESETS[matchedStep].label;
+    if (personaStepDesc) personaStepDesc.textContent = PERSONA_PRESETS[matchedStep].desc;
+  }
+
+  // ✨ REWRITE LATEST ENTRY
+  if (btnRewriteLatest) {
+    btnRewriteLatest.addEventListener("click", async () => {
+      const entries = DB.getPrivateEntries();
+      if (!entries || entries.length === 0) {
+        UI.showNotification("No entries available to rewrite.");
+        return;
+      }
+
+      const settings = DB.getSettings();
+      settings.systemInstruction = settingsSystemInstruction.value.trim();
+      settings.apiKey = settingsApiKey.value.trim();
+      settings.model = settingsModel.value;
+      DB.saveSettings(settings);
+      await DB.saveCloudSettings(settings);
+
+      const latestEntry = entries[0];
+      btnRewriteLatest.disabled = true;
+      btnRewriteLatest.textContent = "✨ REWRITING...";
+
+      try {
+        const rewritten = await AIEngine.rewrite(latestEntry.rawContent);
+        await DB.saveEntry(latestEntry, latestEntry.rawContent, rewritten);
+        renderTimeline();
+        UI.showNotification("Latest entry successfully rewritten!");
+      } catch (err) {
+        console.error("Rewrite latest error:", err);
+        UI.showNotification(err.message || "Rewrite failed.");
+      } finally {
+        btnRewriteLatest.disabled = false;
+        btnRewriteLatest.textContent = "✨ REWRITE LATEST";
+      }
+    });
+  }
+
+  // 🔄 REWRITE ALL ENTRIES (Sequential 1-by-1 with 1.5s delay)
+  if (btnRewriteAll) {
+    btnRewriteAll.addEventListener("click", async () => {
+      const entries = DB.getPrivateEntries();
+      if (!entries || entries.length === 0) {
+        UI.showNotification("No entries available to rewrite.");
+        return;
+      }
+
+      const confirmed = await UI.showConfirm(`Rewrite all ${entries.length} entry reflections using your current persona dial? Each entry will process sequentially.`);
+      if (!confirmed) return;
+
+      const settings = DB.getSettings();
+      settings.systemInstruction = settingsSystemInstruction.value.trim();
+      settings.apiKey = settingsApiKey.value.trim();
+      settings.model = settingsModel.value;
+      DB.saveSettings(settings);
+      await DB.saveCloudSettings(settings);
+
+      btnRewriteAll.disabled = true;
+      if (btnRewriteLatest) btnRewriteLatest.disabled = true;
+
+      let successCount = 0;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        btnRewriteAll.textContent = `🔄 REWRITING ${i + 1}/${entries.length}...`;
+        
+        try {
+          const rewritten = await AIEngine.rewrite(entry.rawContent);
+          await DB.saveEntry(entry, entry.rawContent, rewritten);
+          successCount++;
+          renderTimeline();
+        } catch (err) {
+          console.warn(`Failed to rewrite entry ${entry.id}:`, err);
+        }
+
+        if (i < entries.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+
+      btnRewriteAll.disabled = false;
+      if (btnRewriteLatest) btnRewriteLatest.disabled = false;
+      btnRewriteAll.textContent = "🔄 REWRITE ALL";
+
+      UI.showNotification(`Completed: ${successCount} of ${entries.length} reflections updated with new persona!`);
+    });
+  }
+
   // Log out button action
   btnSignOut.addEventListener("click", async () => {
     if (auth) {
@@ -1646,7 +1802,8 @@ document.addEventListener("DOMContentLoaded", () => {
   btnResetSettings.addEventListener("click", async () => {
     const confirmed = await UI.showConfirm("Reset instructions template to default?");
     if (confirmed) {
-      settingsSystemInstruction.value = DEFAULT_SYSTEM_INSTRUCTION;
+      updatePersonaSliderUI(2);
+      if (settingsPersonaSlider) settingsPersonaSlider.value = 2;
     }
   });
 
