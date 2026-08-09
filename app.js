@@ -1607,30 +1607,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Persona Dial & Presets
+  // Persona Dial & Presets (Calibrated from 0% Period to 100% Period)
   const PERSONA_PRESETS = {
     1: {
-      label: "Step 1: Minimal Period Texture",
-      desc: "Clean, clear, sincere 19th-century prose. Minimal archaic phrasing, grounded observations, plain direct speech, zero melodrama.",
-      prompt: `You are a thoughtful 19th-century diarist writing in a personal journal.\nRewrite the provided raw modern text into clean, sincere 19th-century prose.\n\nStrict Rules:\n- Keep the language grounded, direct, and authentic.\n- DO NOT use theatrical clichés or melodramatic posturing (no "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Maintain all modern facts, names, dates, and image tags.\n- If raw text has multiple sentences without explicit punctuation, break them into natural, clean sentences.`
+      label: "Step 1: Modern & Natural (0% Period)",
+      desc: "100% natural modern speech. Cleans up voice dictation, run-on sentences, and punctuation without adding ANY Victorian phrasing or archaic words.",
+      prompt: `You are a clear, modern text editor. Format the provided raw entry or speech dictation into clean, natural modern prose.\n\nStrict Rules:\n- DO NOT add any Victorian, 19th-century, or archaic phrasing. Keep the author's natural modern voice and everyday vocabulary 100% intact.\n- Fix punctuation, run-on sentences, and speech dictation typos cleanly.\n- If the input contains previous Victorian flourishes or archaic words from an earlier draft, STRIP THEM AWAY so the text returns to plain, direct modern speech.\n- Preserve all names, dates, numbers, facts, and image tags exactly as written.`
     },
     2: {
-      label: "Step 2: Grounded Classical",
-      desc: "Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.",
-      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided modern text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (e.g. NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- Preserve all images, names, numbers, and facts from the raw entry.\n- Auto-infer natural sentence boundaries from speech.`
+      label: "Step 2: Minimal Classical Tint (15% Period)",
+      desc: "Very light touch of classical clarity. Plain, grounded, and sincere prose with zero archaic clichés or melodrama.",
+      prompt: `You are a thoughtful editor providing a very subtle, minimal touch of classical clarity to a personal journal entry.\n\nStrict Rules:\n- Keep the prose 85% modern, direct, and unpretentious with only a whisper of classical dignity.\n- Absolutely BAN all Victorian clichés (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- If the input contains heavy Victorian flourishes from a previous draft, strip away the extra period ornament to return to a light, clean baseline.\n- Preserve all image tags, names, dates, numbers, and factual details.`
     },
     3: {
-      label: "Step 3: Elegant Literary",
-      desc: "Poised, eloquent 19th-century prose. Richer sentence structure, thoughtful cadence, dignified tone.",
-      prompt: `You are an eloquent 19th-century diarist recording life reflections.\nRewrite the provided modern text into poised, elegant 19th-century journal prose.\n\nStrict Rules:\n- Use thoughtful 19th-century cadence while avoiding theatrical clichés ("alas", "methinks", "hark", "doth").\n- Keep the narrative authentic, dignified, and expressive.\n- Preserve all image tags, names, dates, and modern facts exactly as stated.`
+      label: "Step 3: Grounded 19th-Century (50% Period)",
+      desc: "Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.",
+      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- If the input is already heavily Victorian, balance and clean it down to an understated baseline.\n- Preserve all images, names, numbers, and facts from the raw entry.`
     },
     4: {
-      label: "Step 4: Formal 19th-Century",
+      label: "Step 4: Formal 19th-Century (75% Period)",
       desc: "Formal 19th-century prose. Classical vocabulary, measured phrasing, traditional journal structure.",
       prompt: `You are a formal 19th-century chronicler keeping a private journal.\nRewrite the provided text into formal 19th-century prose with classical vocabulary and measured phrasing.\n\nStrict Rules:\n- Maintain a traditional period journal structure.\n- Avoid silly melodramatic clichés ("alas", "methinks").\n- Preserve all image attachments, dates, names, and factual details.`
     },
     5: {
-      label: "Step 5: High Period Atmosphere",
+      label: "Step 5: High Period Atmosphere (100% Period)",
       desc: "Immersive, highly atmospheric 19th-century prose with rich period vocabulary and traditional cadence.",
       prompt: `You are an atmospheric 19th-century writer keeping a deeply reflective journal.\nRewrite the provided text into immersive, rich 19th-century period prose.\n\nStrict Rules:\n- Use rich 19th-century vocabulary and atmospheric cadence while keeping prose coherent.\n- Preserve all images, facts, names, and original details.`
     }
