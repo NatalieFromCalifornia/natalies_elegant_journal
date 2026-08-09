@@ -1610,19 +1610,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // Persona Dial & Presets (Calibrated from 0% Period to 100% Period)
   const PERSONA_PRESETS = {
     1: {
-      label: "Step 1: Modern & Natural (0% Period)",
-      desc: "100% natural modern speech. Cleans up voice dictation, run-on sentences, and punctuation without adding ANY Victorian phrasing or archaic words.",
-      prompt: `You are a clear, modern text editor. Format the provided raw entry or speech dictation into clean, natural modern prose.\n\nStrict Rules:\n- DO NOT add any Victorian, 19th-century, or archaic phrasing. Keep the author's natural modern voice and everyday vocabulary 100% intact.\n- Fix punctuation, run-on sentences, and speech dictation typos cleanly.\n- If the input contains previous Victorian flourishes or archaic words from an earlier draft, STRIP THEM AWAY so the text returns to plain, direct modern speech.\n- Preserve all names, dates, numbers, facts, and image tags exactly as written.`
+      label: "Step 1: Modern & Natural (0% AI Period Added)",
+      desc: "Cleans up voice dictation, run-on sentences, and punctuation while preserving your exact original words, vocabulary, and phrasing 100% intact.",
+      prompt: `You are a clear, modern text editor. Format the provided raw entry or speech dictation into clean, natural prose.\n\nStrict Rules:\n- Fix punctuation, run-on sentences, and speech dictation typos cleanly.\n- Respect and preserve all original words, phrasing, vocabulary, names, dates, numbers, facts, and image tags exactly as written by the author.\n- DO NOT add extra Victorian clichés or artificial period flourishes beyond what the author wrote.`
     },
     2: {
       label: "Step 2: Minimal Classical Tint (15% Period)",
       desc: "Very light touch of classical clarity. Plain, grounded, and sincere prose with zero archaic clichés or melodrama.",
-      prompt: `You are a thoughtful editor providing a very subtle, minimal touch of classical clarity to a personal journal entry.\n\nStrict Rules:\n- Keep the prose 85% modern, direct, and unpretentious with only a whisper of classical dignity.\n- Absolutely BAN all Victorian clichés (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- If the input contains heavy Victorian flourishes from a previous draft, strip away the extra period ornament to return to a light, clean baseline.\n- Preserve all image tags, names, dates, numbers, and factual details.`
+      prompt: `You are a thoughtful editor providing a very subtle, minimal touch of classical clarity to a personal journal entry.\n\nStrict Rules:\n- Keep the prose direct, grounded, and unpretentious with only a whisper of classical dignity.\n- Preserve the author's original words, phrasing, facts, names, dates, and image tags.\n- Absolutely BAN silly theatrical Victorian clichés (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").`
     },
     3: {
       label: "Step 3: Grounded 19th-Century (50% Period)",
       desc: "Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.",
-      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- If the input is already heavily Victorian, balance and clean it down to an understated baseline.\n- Preserve all images, names, numbers, and facts from the raw entry.`
+      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- Preserve all original images, names, numbers, phrasing, and facts from the author's raw entry.`
     },
     4: {
       label: "Step 4: Formal 19th-Century (75% Period)",
