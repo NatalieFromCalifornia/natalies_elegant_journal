@@ -53,8 +53,8 @@ const DB = {
     if (!settingsRaw) return DEFAULT_SETTINGS;
     try {
       const parsed = JSON.parse(settingsRaw);
-      // Auto-upgrade saved prompt if it still uses the old melodramatic gentlewoman version
-      if (!parsed.systemInstruction || parsed.systemInstruction.includes("refined gentlewoman") || parsed.systemInstruction.includes("Jane Austen")) {
+      // Auto-upgrade saved prompt if it lacks the mandatory non-conversational boundary
+      if (!parsed.systemInstruction || !parsed.systemInstruction.includes("CRITICAL ROLE BOUNDARY")) {
         parsed.systemInstruction = DEFAULT_SYSTEM_INSTRUCTION;
       }
       return { ...DEFAULT_SETTINGS, ...parsed };
@@ -507,6 +507,9 @@ const AIEngine = {
     const model = settings.model || "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
 
+    const MANDATORY_SYSTEM_HEADER = `CRITICAL DIRECTIVE: You are a silent, non-conversational text editor and transcriber ONLY. Output ONLY the processed journal entry text itself. NEVER speak directly to the user. NEVER express sympathy, offer unsolicited advice, suggest therapy, or add conversational preambles/postscripts (such as "I'm sorry you are feeling", "As an AI", "I hope things get better", "consider reaching out to a professional"). NEVER use the first person ("I", "my", "we"). Respond WITH THE REWRITTEN JOURNAL TEXT ONLY.\n\n`;
+    const finalInstruction = MANDATORY_SYSTEM_HEADER + (settings.systemInstruction || DEFAULT_SYSTEM_INSTRUCTION);
+
     const requestPayload = {
       contents: [
         {
@@ -517,7 +520,7 @@ const AIEngine = {
       ],
       systemInstruction: {
         parts: [
-          { text: settings.systemInstruction }
+          { text: finalInstruction }
         ]
       },
       safetySettings: [
@@ -552,21 +555,26 @@ const AIEngine = {
     let rewritten = rawTextResponse.trim();
 
     // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited advice/sympathy
-    const therapyKeywords = [
-      "therapist", "mental health professional", "seek help", "counselor", 
-      "helpline", "I'm so sorry you", "I am sorry to hear", "As an AI", 
-      "support system", "talk to someone", "please consider reaching out"
+    const conversationalKeywords = [
+      "therapist", "mental health", "seek help", "counselor", "helpline", 
+      "I'm so sorry", "I am sorry", "I can hear", "I hear how", "As an AI", 
+      "support system", "talk to someone", "please consider", "you are not alone",
+      "take care of yourself", "wishing you", "hope you find", "remember that you",
+      "please reach out", "struggling", "stay safe"
     ];
     
-    const containsTherapyBoilerplate = therapyKeywords.some(keyword => {
+    const isConversational = conversationalKeywords.some(keyword => {
       const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "i");
       return regex.test(rewritten) && !regex.test(rawContent);
     });
 
-    if (containsTherapyBoilerplate) {
-      console.warn("Blocked unsolicited conversational therapy advice from AI response:", rewritten);
+    if (isConversational) {
+      console.warn("Blocked sympathizing/conversational AI response:", rewritten);
       // Fallback cleanly to author's raw content
       rewritten = rawContent;
+      if (typeof UI !== "undefined" && UI.showNotification) {
+        UI.showNotification("Blocked sympathizing AI response: saved raw reflection.");
+      }
     }
 
     // Substitute image tokens back to their original position in the Victorian response
