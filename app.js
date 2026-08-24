@@ -1007,6 +1007,27 @@ document.addEventListener("DOMContentLoaded", () => {
     activeUnredactTarget = null;
   }
 
+  // Helper to normalize quotes and entities for reliable text selection matching
+  function findMatchingSubstring(fullText, target) {
+    if (!fullText || !target) return null;
+    if (fullText.includes(target)) return target;
+
+    // Build flexible regex accepting straight, smart quotes, or HTML entities
+    const pattern = target.replace(/([.*+?^${}()|[\]\\])/g, "\\$1")
+      .replace(/["“”]/g, '["“”]|&quot;')
+      .replace(/['‘’]/g, "['‘’]|&#039;")
+      .replace(/&/g, "(&|&amp;)")
+      .replace(/\s+/g, "\\s+");
+
+    try {
+      const regex = new RegExp(pattern, "i");
+      const match = fullText.match(regex);
+      if (match) return match[0];
+    } catch(e) {}
+
+    return null;
+  }
+
   // Redact action handler
   const performRedaction = async (e) => {
     if (e) {
@@ -1019,16 +1040,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const { cardId, text } = activeSelection;
     const entry = DB.getPrivateEntries().find(e => e.id === cardId);
     
-    if (entry && entry.victorianContent.includes(text)) {
-      entry.victorianContent = entry.victorianContent.replace(text, `||${text}||`);
-      await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
-      renderTimeline();
-      UI.showNotification("Secret redacted.");
+    if (entry) {
+      const matchText = findMatchingSubstring(entry.victorianContent, text);
+      if (matchText) {
+        entry.victorianContent = entry.victorianContent.replace(matchText, `||${matchText}||`);
+        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+        renderTimeline();
+        UI.showNotification("Secret redacted.");
+      } else {
+        UI.showNotification("Highlighted text mismatch. Try again.");
+      }
     } else {
       UI.showNotification("Highlighted text mismatch. Try again.");
     }
 
-    window.getSelection().removeAllRanges();
+    if (window.getSelection) {
+      window.getSelection().removeAllRanges();
+    }
     hideFloatingRedact();
   };
 
@@ -1047,9 +1075,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const { cardId, secretText } = activeUnredactTarget;
     const entry = DB.getPrivateEntries().find(e => e.id === cardId);
     if (entry) {
-      const targetPattern = `||${secretText}||`;
-      if (entry.victorianContent.includes(targetPattern)) {
-        entry.victorianContent = entry.victorianContent.replace(targetPattern, secretText);
+      const matchText = findMatchingSubstring(entry.victorianContent, `||${secretText}||`) || `||${secretText}||`;
+      if (entry.victorianContent.includes(matchText)) {
+        const cleanUnredacted = matchText.replace(/^\|\|/, "").replace(/\|\|$/, "");
+        entry.victorianContent = entry.victorianContent.replace(matchText, cleanUnredacted);
         await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
         renderTimeline();
         UI.showNotification("Secret unredacted.");
