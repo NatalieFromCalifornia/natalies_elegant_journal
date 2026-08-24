@@ -777,7 +777,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const formattedTime = Renderer.formatTime(entry.date || entry.createdAt);
         const formattedEdited = Renderer.formatFullDateTime(entry.updatedAt);
 
-        const isDirectText = entry.isRawFallback || (entry.rawContent && entry.victorianContent && entry.rawContent.trim() === entry.victorianContent.trim());
+        const renderText = reminisceUnlocked ? entry.victorianContent : entry.publicContent;
+        const editRawVal = reminisceUnlocked ? (entry.rawContent || "") : "";
+
+        const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
         const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
 
         row.innerHTML = `
