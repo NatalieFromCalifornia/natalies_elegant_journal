@@ -1007,22 +1007,48 @@ document.addEventListener("DOMContentLoaded", () => {
     activeUnredactTarget = null;
   }
 
-  // Helper to normalize quotes and entities for reliable text selection matching
+  // Helper to normalize quotes, entities, and multiline lists for reliable text selection matching
   function findMatchingSubstring(fullText, target) {
     if (!fullText || !target) return null;
     if (fullText.includes(target)) return target;
 
-    // Build flexible regex accepting straight, smart quotes, or HTML entities
-    const pattern = target.replace(/([.*+?^${}()|[\]\\])/g, "\\$1")
-      .replace(/["“”]/g, '["“”]|&quot;')
-      .replace(/['‘’]/g, "['‘’]|&#039;")
-      .replace(/&/g, "(&|&amp;)")
-      .replace(/\s+/g, "\\s+");
+    // 1. Normalize non-breaking spaces (\u00A0) and carriage returns
+    const cleanTarget = target.replace(/\u00A0/g, " ").replace(/\r\n/g, "\n");
+    if (fullText.includes(cleanTarget)) return cleanTarget;
+
+    // 2. Build flexible character-by-character regex pattern (handles quotes, entities, & line breaks in lists)
+    let pattern = "";
+    for (let i = 0; i < cleanTarget.length; i++) {
+      const char = cleanTarget[i];
+      if (char === '"' || char === '“' || char === '”') {
+        pattern += '(["“”]|&quot;|\\")';
+      } else if (char === "'" || char === '‘' || char === '’') {
+        pattern += "(['‘’]|&#039;|\\')";
+      } else if (char === '&') {
+        pattern += "(&|&amp;)";
+      } else if (/\s/.test(char)) {
+        pattern += "[\\s\\n\\r\\u00A0]+";
+      } else if (/[.*+?^${}()|[\]\\]/.test(char)) {
+        pattern += "\\" + char;
+      } else {
+        pattern += char;
+      }
+    }
 
     try {
       const regex = new RegExp(pattern, "i");
       const match = fullText.match(regex);
       if (match) return match[0];
+    } catch(e) {}
+
+    // 3. Normalized index fallback search for multiline quote lists
+    try {
+      const normVictorian = fullText.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\u00A0/g, " ");
+      const normTarget = cleanTarget.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/\u00A0/g, " ");
+      const idx = normVictorian.indexOf(normTarget);
+      if (idx !== -1) {
+        return fullText.slice(idx, idx + cleanTarget.length);
+      }
     } catch(e) {}
 
     return null;
