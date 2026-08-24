@@ -21,8 +21,8 @@ const DEFAULT_SETTINGS = {
 // Mask secrets at database compilation level (Inspect Element Sniff-Proof)
 function maskSecrets(text) {
   if (!text) return "";
-  return text.replace(/\|\|(.*?)\|\|/g, (match, p1) => {
-    const masked = p1.replace(/\S/g, "█");
+  return text.replace(/\|\|([\s\S]*?)\|\|/g, (match, p1) => {
+    const masked = p1.replace(/[^\s]/g, "█");
     return `||${masked}||`;
   });
 }
@@ -362,7 +362,7 @@ const Renderer = {
     });
 
     let escaped = this.escapeHtml(cleanText);
-    escaped = escaped.replace(/\|\|(.*?)\|\|/g, (match, secret) => {
+    escaped = escaped.replace(/\|\|([\s\S]*?)\|\|/g, (match, secret) => {
       const attrSecret = secret.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       return `<span class="redacted-text" data-secret="${attrSecret}" title="Click to unredact secret">${secret}</span>`;
     })
