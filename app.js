@@ -542,14 +542,18 @@ const AIEngine = {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const errMsg = errData.error?.message || response.statusText;
-      throw new Error(`Gemini API Error: ${errMsg}`);
+      console.warn("Gemini API Error, falling back to raw text:", errMsg);
+      return rawContent;
     }
 
     const responseData = await response.json();
-    let rawTextResponse = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
+    const candidate = responseData.candidates?.[0];
+    let rawTextResponse = candidate?.content?.parts?.[0]?.text;
     
+    // If Gemini model refused/blocked transcription (e.g. finishReason SAFETY or empty text), fallback directly to rawContent
     if (!rawTextResponse) {
-      throw new Error("Empty response received from Gemini.");
+      console.warn("Gemini candidate response was empty or blocked by safety filter. finishReason:", candidate?.finishReason);
+      return rawContent;
     }
 
     let rewritten = rawTextResponse.trim();
@@ -560,7 +564,7 @@ const AIEngine = {
       "I'm so sorry", "I am sorry", "I can hear", "I hear how", "As an AI", 
       "support system", "talk to someone", "please consider", "you are not alone",
       "take care of yourself", "wishing you", "hope you find", "remember that you",
-      "please reach out", "struggling", "stay safe"
+      "please reach out", "struggling", "stay safe", "self-harm", "988", "crisis"
     ];
     
     const isConversational = conversationalKeywords.some(keyword => {
@@ -573,7 +577,7 @@ const AIEngine = {
       // Fallback cleanly to author's raw content
       rewritten = rawContent;
       if (typeof UI !== "undefined" && UI.showNotification) {
-        UI.showNotification("Blocked sympathizing AI response: saved raw reflection.");
+        UI.showNotification("Preserved raw reflection without AI commentary.");
       }
     }
 
