@@ -519,7 +519,13 @@ const AIEngine = {
         parts: [
           { text: settings.systemInstruction }
         ]
-      }
+      },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
     };
 
     const response = await fetch(url, {
@@ -544,6 +550,24 @@ const AIEngine = {
     }
 
     let rewritten = rawTextResponse.trim();
+
+    // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited advice/sympathy
+    const therapyKeywords = [
+      "therapist", "mental health professional", "seek help", "counselor", 
+      "helpline", "I'm so sorry you", "I am sorry to hear", "As an AI", 
+      "support system", "talk to someone", "please consider reaching out"
+    ];
+    
+    const containsTherapyBoilerplate = therapyKeywords.some(keyword => {
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "i");
+      return regex.test(rewritten) && !regex.test(rawContent);
+    });
+
+    if (containsTherapyBoilerplate) {
+      console.warn("Blocked unsolicited conversational therapy advice from AI response:", rewritten);
+      // Fallback cleanly to author's raw content
+      rewritten = rawContent;
+    }
 
     // Substitute image tokens back to their original position in the Victorian response
     imageTokens.forEach(({ token, fullMatch }) => {
@@ -1608,31 +1632,33 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Persona Dial & Presets (Calibrated from 0% Period to 100% Period)
+  const NON_CONVERSATIONAL_CLAUSE = `\n- CRITICAL ROLE BOUNDARY: You are a silent, non-conversational text editor/transcriber ONLY. NEVER speak to the user, offer sympathy, give unsolicited advice, recommend therapy, or add conversational preambles/postscripts. NEVER respond in the first person ("I am sorry...", "As an AI..."). Output ONLY the journal entry text itself.`;
+
   const PERSONA_PRESETS = {
     1: {
       label: "Step 1: Modern & Natural (0% AI Period Added)",
       desc: "Cleans up voice dictation, run-on sentences, and punctuation while preserving your exact original words, vocabulary, and phrasing 100% intact.",
-      prompt: `You are a clear, modern text editor. Format the provided raw entry or speech dictation into clean, natural prose.\n\nStrict Rules:\n- Fix punctuation, run-on sentences, and speech dictation typos cleanly.\n- Respect and preserve all original words, phrasing, vocabulary, names, dates, numbers, facts, and image tags exactly as written by the author.\n- DO NOT add extra Victorian clichés or artificial period flourishes beyond what the author wrote.`
+      prompt: `You are a clear, modern text editor. Format the provided raw entry or speech dictation into clean, natural prose.\n\nStrict Rules:\n- Fix punctuation, run-on sentences, and speech dictation typos cleanly.\n- Respect and preserve all original words, phrasing, vocabulary, names, dates, numbers, facts, and image tags exactly as written by the author.\n- DO NOT add extra Victorian clichés or artificial period flourishes beyond what the author wrote.${NON_CONVERSATIONAL_CLAUSE}`
     },
     2: {
       label: "Step 2: Minimal Classical Tint (15% Period)",
       desc: "Very light touch of classical clarity. Plain, grounded, and sincere prose with zero archaic clichés or melodrama.",
-      prompt: `You are a thoughtful editor providing a very subtle, minimal touch of classical clarity to a personal journal entry.\n\nStrict Rules:\n- Keep the prose direct, grounded, and unpretentious with only a whisper of classical dignity.\n- Preserve the author's original words, phrasing, facts, names, dates, and image tags.\n- Absolutely BAN silly theatrical Victorian clichés (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").`
+      prompt: `You are a thoughtful editor providing a very subtle, minimal touch of classical clarity to a personal journal entry.\n\nStrict Rules:\n- Keep the prose direct, grounded, and unpretentious with only a whisper of classical dignity.\n- Preserve the author's original words, phrasing, facts, names, dates, and image tags.\n- Absolutely BAN silly theatrical Victorian clichés (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").${NON_CONVERSATIONAL_CLAUSE}`
     },
     3: {
       label: "Step 3: Grounded 19th-Century (50% Period)",
       desc: "Warm, understated 19th-century prose. Reflective, unpretentious, quiet dignity, zero melodrama.",
-      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- Preserve all original images, names, numbers, phrasing, and facts from the author's raw entry.`
+      prompt: `You are a thoughtful, observant 19th-century diarist writing in a private journal.\nRewrite the provided text into warm, understated 19th-century prose.\n\nStrict Rules:\n- Absolutely BAN all theatrical Victorian clichés and posturing (NEVER use "alas", "methinks", "hark", "doth", "twas", "perchance", "hitherto", "my weary heart", "solace").\n- Keep the tone sincere, unpretentious, and reflective with quiet dignity.\n- Preserve all original images, names, numbers, phrasing, and facts from the author's raw entry.${NON_CONVERSATIONAL_CLAUSE}`
     },
     4: {
       label: "Step 4: Formal 19th-Century (75% Period)",
       desc: "Formal 19th-century prose. Classical vocabulary, measured phrasing, traditional journal structure.",
-      prompt: `You are a formal 19th-century chronicler keeping a private journal.\nRewrite the provided text into formal 19th-century prose with classical vocabulary and measured phrasing.\n\nStrict Rules:\n- Maintain a traditional period journal structure.\n- Avoid silly melodramatic clichés ("alas", "methinks").\n- Preserve all image attachments, dates, names, and factual details.`
+      prompt: `You are a formal 19th-century chronicler keeping a private journal.\nRewrite the provided text into formal 19th-century prose with classical vocabulary and measured phrasing.\n\nStrict Rules:\n- Maintain a traditional period journal structure.\n- Avoid silly melodramatic clichés ("alas", "methinks").\n- Preserve all image attachments, dates, names, and factual details.${NON_CONVERSATIONAL_CLAUSE}`
     },
     5: {
       label: "Step 5: High Period Atmosphere (100% Period)",
       desc: "Immersive, highly atmospheric 19th-century prose with rich period vocabulary and traditional cadence.",
-      prompt: `You are an atmospheric 19th-century writer keeping a deeply reflective journal.\nRewrite the provided text into immersive, rich 19th-century period prose.\n\nStrict Rules:\n- Use rich 19th-century vocabulary and atmospheric cadence while keeping prose coherent.\n- Preserve all images, facts, names, and original details.`
+      prompt: `You are an atmospheric 19th-century writer keeping a deeply reflective journal.\nRewrite the provided text into immersive, rich 19th-century period prose.\n\nStrict Rules:\n- Use rich 19th-century vocabulary and atmospheric cadence while keeping prose coherent.\n- Preserve all images, facts, names, and original details.${NON_CONVERSATIONAL_CLAUSE}`
     }
   };
 
