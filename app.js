@@ -611,13 +611,27 @@ const AIEngine = {
 
     let rewritten = rawTextResponse.trim();
 
-    // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited advice/sympathy
+    // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited therapy advice or AI meta-commentary
     const conversationalKeywords = [
-      "therapist", "mental health", "seek help", "counselor", "helpline", 
-      "I'm so sorry", "I am sorry", "I can hear", "I hear how", "As an AI", 
-      "support system", "talk to someone", "please consider", "you are not alone",
-      "take care of yourself", "wishing you", "hope you find", "remember that you",
-      "please reach out", "struggling", "stay safe", "self-harm", "988", "crisis"
+      "therapist",
+      "mental health professional",
+      "seek professional help",
+      "counselor",
+      "crisis helpline",
+      "988 hotline",
+      "I'm so sorry you",
+      "I am so sorry you",
+      "I am sorry to hear that you",
+      "As an AI language model",
+      "As an AI,",
+      "As an AI ",
+      "feel free to reach out to a professional",
+      "please know that you are not alone",
+      "remember to take care of yourself",
+      "if you or someone you know is struggling",
+      "please seek support",
+      "national suicide prevention",
+      "reach out to a healthcare professional"
     ];
     
     const isConversational = conversationalKeywords.some(keyword => {
