@@ -22,6 +22,10 @@ const DEFAULT_SETTINGS = {
 function maskSecrets(text) {
   if (!text) return "";
   return text.replace(/\|\|([\s\S]*?)\|\|/g, (match, p1) => {
+    // If secret contains an image tag or data Base64 URL, replace with clean placeholder tag
+    if (/!\[[\s\S]*?\]\(|data:image\/|img-/i.test(p1)) {
+      return `||[REDACTED_IMAGE]||`;
+    }
     const masked = p1.replace(/[^\s]/g, "█");
     return `||${masked}||`;
   });
@@ -337,11 +341,16 @@ const Renderer = {
   render(text) {
     if (!text) return "";
 
+    const lucideLockSvg = `<svg class="lucide-lock-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
     // Extract image markdown tags OR raw data:image Base64 strings OR short img-xxx IDs
     const images = [];
 
     // Pass 1: Redacted Markdown image syntax ||![alt](url)||
     let cleanText = text.replace(/\|\|!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)\|\|/gi, (match, altText, dataUrl) => {
+      if (!reminisceUnlocked) {
+        return `<div class="public-redacted-box">${lucideLockSvg}<span>REDACTED ATTACHMENT</span></div>`;
+      }
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
       if (actualUrl && !actualUrl.startsWith("img-")) {
         let widthStyle = "";
@@ -377,6 +386,12 @@ const Renderer = {
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
+    // Replace ||[REDACTED_IMAGE]|| tags in public mode
+    cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/g, `<div class="public-redacted-box">${lucideLockSvg}<span>REDACTED ATTACHMENT</span></div>`);
+
+    // Clean up empty lines & excessive newlines surrounding image placeholders before \n -> <br>
+    cleanText = cleanText.replace(/\n*___IMG_PLACEHOLDER_(\d+)___\n*/g, '\n___IMG_PLACEHOLDER_$1___\n');
+
     let escaped = this.escapeHtml(cleanText);
     escaped = escaped.replace(/\|\|([\s\S]*?)\|\|/g, (match, secret) => {
       const attrSecret = secret.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -401,8 +416,7 @@ const Renderer = {
 
       const redactedOverlay = isRedacted ? `
         <div class="redacted-img-overlay" title="Redacted Image Attachment">
-          <span class="redacted-img-lock-icon">🔒</span>
-          <span class="redacted-img-text">REDACTED ATTACHMENT</span>
+          ${lucideLockSvg}
         </div>
       ` : '';
 
@@ -421,8 +435,10 @@ const Renderer = {
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
-    // Cleanly strip excessive <br> tags immediately preceding or following block image containers
+    // Cleanly strip excessive <br> tags immediately preceding or following block image containers & public redacted boxes
     escaped = escaped.replace(/(<br\s*\/?>\s*)+<div class="journal-img-container"/g, '<div class="journal-img-container"');
+    escaped = escaped.replace(/<\/div>\s*(<br\s*\/?>\s*)+/g, '</div>');
+    escaped = escaped.replace(/(<br\s*\/?>\s*)+<div class="public-redacted-box"/g, '<div class="public-redacted-box"');
     escaped = escaped.replace(/<\/div>\s*(<br\s*\/?>\s*)+/g, '</div>');
 
     return escaped;

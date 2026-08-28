@@ -1011,30 +1011,23 @@ body.gander-mode .redacted-text:hover {
   right: 0;
   bottom: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   background: rgba(26, 25, 24, 0.85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #E6DFD5;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #D4AF37;
   z-index: 4;
   user-select: none;
   pointer-events: none;
 }
 
-.redacted-img-lock-icon {
-  font-size: 22px;
-}
-
-.redacted-img-text {
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #D4AF37;
+.lucide-lock-icon {
+  width: 24px;
+  height: 24px;
+  stroke: #D4AF37;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
 }
 
 .public-redacted-box {
@@ -1042,8 +1035,8 @@ body.gander-mode .redacted-text:hover {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 16px;
-  margin: 6px 0;
+  padding: 12px 18px;
+  margin: 4px 0;
   background: #1A1918;
   border-radius: 12px;
   border: 1px solid rgba(46, 43, 42, 0.2);
@@ -1053,5 +1046,12 @@ body.gander-mode .redacted-text:hover {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.public-redacted-box .lucide-lock-icon {
+  width: 16px;
+  height: 16px;
+  stroke: #8E8A85;
+  filter: none;
 }
 
