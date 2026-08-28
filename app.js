@@ -397,7 +397,6 @@ const Renderer = {
           <button type="button" class="btn-img-size" data-size="450px">450px</button>
           <button type="button" class="btn-img-size" data-size="100%">100%</button>
         </div>
-        <div class="img-resize-handle" title="Drag corner to resize image">⇲</div>
       ` : '';
 
       const redactedOverlay = isRedacted ? `
@@ -407,13 +406,24 @@ const Renderer = {
         </div>
       ` : '';
 
-      const imgTag = `<div class="journal-img-container ${redactClass}" data-img-idx="${idx}">${controlsHtml}${redactedOverlay}<img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /></div>`;
+      const resizeHandleHtml = reminisceUnlocked ? '<div class="img-resize-handle" title="Drag corner to resize image">⇲</div>' : '';
+
+      const imgTag = `
+        <div class="journal-img-container ${redactClass}" data-img-idx="${idx}">
+          ${controlsHtml}
+          <div class="journal-img-frame">
+            ${redactedOverlay}
+            <img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" />
+            ${resizeHandleHtml}
+          </div>
+        </div>
+      `;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
-    // Strip adjacent <br> tags surrounding block image containers
-    escaped = escaped.replace(/(<br>\s*)+<div class="journal-img-container"/g, '<div class="journal-img-container"');
-    escaped = escaped.replace(/<div class="journal-img-container"([^>]*)\/>(\s*<br>)+/g, '<div class="journal-img-container"$1/>');
+    // Cleanly strip excessive <br> tags immediately preceding or following block image containers
+    escaped = escaped.replace(/(<br\s*\/?>\s*)+<div class="journal-img-container"/g, '<div class="journal-img-container"');
+    escaped = escaped.replace(/<\/div>\s*(<br\s*\/?>\s*)+/g, '</div>');
 
     return escaped;
   },

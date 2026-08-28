@@ -832,10 +832,19 @@ body.gander-mode .redacted-text:hover {
 /* Resizable Journal Entry Attached Image Styling */
 .journal-img-container {
   position: relative;
+  display: block;
+  max-width: 100%;
+  margin: 4px 0 6px 0;
+  clear: both;
+}
+
+.journal-img-frame {
+  position: relative;
   display: inline-block;
   max-width: 100%;
-  margin: 10px 0;
-  clear: both;
+  border-radius: 12px;
+  overflow: hidden;
+  line-height: 0;
 }
 
 .journal-img-container .journal-entry-img {
@@ -846,7 +855,9 @@ body.gander-mode .redacted-text:hover {
 .img-resize-bar {
   display: flex;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  position: relative;
+  z-index: 10;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -979,7 +990,7 @@ body.gander-mode .redacted-text:hover {
   color: var(--bg-color);
 }
 
-.journal-img-container.redacted-img-container {
+.journal-img-container.redacted-img-container .journal-img-frame {
   position: relative;
   overflow: hidden;
   border-radius: 12px;
@@ -1031,8 +1042,8 @@ body.gander-mode .redacted-text:hover {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 20px;
-  margin: 12px 0;
+  padding: 16px;
+  margin: 6px 0;
   background: #1A1918;
   border-radius: 12px;
   border: 1px solid rgba(46, 43, 42, 0.2);
