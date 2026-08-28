@@ -851,11 +851,12 @@ body.gander-mode .redacted-text:hover {
   margin: 0;
 }
 
-/* Quick Size Preset Toolbar */
+/* Quick Size Preset Toolbar (Bottom of Image) */
 .img-resize-bar {
   display: flex;
   gap: 6px;
-  margin-bottom: 4px;
+  margin-top: 4px;
+  margin-bottom: 0;
   position: relative;
   z-index: 10;
   opacity: 0;

@@ -440,12 +440,12 @@ const Renderer = {
 
       const imgTag = `
         <div class="journal-img-container ${redactClass}" data-img-idx="${idx}">
-          ${controlsHtml}
           <div class="journal-img-frame">
             ${redactedOverlay}
             <img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" />
             ${resizeHandleHtml}
           </div>
+          ${controlsHtml}
         </div>
       `;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
