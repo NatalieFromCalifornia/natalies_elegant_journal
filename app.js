@@ -341,15 +341,17 @@ const Renderer = {
   render(text) {
     if (!text) return "";
 
-    const lucideLockSvg = `<svg class="lucide-lock-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+    const lucideLockSvg = `<svg class="lucide-lock-icon" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
 
     // Extract image markdown tags OR raw data:image Base64 strings OR short img-xxx IDs
     const images = [];
+    const publicRedactedBoxes = [];
 
     // Pass 1: Redacted Markdown image syntax ||![alt](url)||
     let cleanText = text.replace(/\|\|!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)\|\|/gi, (match, altText, dataUrl) => {
       if (!reminisceUnlocked) {
-        return `<div class="public-redacted-box">${lucideLockSvg}<span>REDACTED ATTACHMENT</span></div>`;
+        publicRedactedBoxes.push(true);
+        return `___PUBLIC_REDACTED_IMG_${publicRedactedBoxes.length - 1}___`;
       }
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
       if (actualUrl && !actualUrl.startsWith("img-")) {
@@ -386,12 +388,19 @@ const Renderer = {
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
-    // Replace ||[REDACTED_IMAGE]|| tags and legacy 30+ █ block characters in public mode with image-proportioned redacted box
-    cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/gi, `<div class="public-redacted-box">${lucideLockSvg}</div>`);
-    cleanText = cleanText.replace(/(?:\|\|)?█{30,}(?:\|\|)?/g, `<div class="public-redacted-box">${lucideLockSvg}</div>`);
+    // Replace ||[REDACTED_IMAGE]|| tags and legacy 30+ █ block characters in public mode with placeholders
+    cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/gi, () => {
+      publicRedactedBoxes.push(true);
+      return `___PUBLIC_REDACTED_IMG_${publicRedactedBoxes.length - 1}___`;
+    });
+    cleanText = cleanText.replace(/(?:\|\|)?█{30,}(?:\|\|)?/g, () => {
+      publicRedactedBoxes.push(true);
+      return `___PUBLIC_REDACTED_IMG_${publicRedactedBoxes.length - 1}___`;
+    });
 
     // Clean up empty lines & excessive newlines surrounding image placeholders before \n -> <br>
     cleanText = cleanText.replace(/\n*___IMG_PLACEHOLDER_(\d+)___\n*/g, '\n___IMG_PLACEHOLDER_$1___\n');
+    cleanText = cleanText.replace(/\n*___PUBLIC_REDACTED_IMG_(\d+)___\n*/g, '\n___PUBLIC_REDACTED_IMG_$1___\n');
 
     let escaped = this.escapeHtml(cleanText);
     escaped = escaped.replace(/\|\|([\s\S]*?)\|\|/g, (match, secret) => {
@@ -399,6 +408,12 @@ const Renderer = {
       return `<span class="redacted-text" data-secret="${attrSecret}" title="Click to unredact secret">${secret}</span>`;
     })
     .replace(/\n/g, '<br>');
+
+    // Restore public redacted image boxes AFTER escapeHtml
+    publicRedactedBoxes.forEach((_, idx) => {
+      const publicBoxHtml = `<div class="public-redacted-box" title="Redacted Image Attachment">${lucideLockSvg}</div>`;
+      escaped = escaped.replace(`___PUBLIC_REDACTED_IMG_${idx}___`, publicBoxHtml);
+    });
 
     // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
     images.forEach(({ dataUrl, widthStyle, isRedacted, rawTag }, idx) => {
