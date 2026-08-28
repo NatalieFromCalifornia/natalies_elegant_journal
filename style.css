@@ -834,7 +834,7 @@ body.gander-mode .redacted-text:hover {
   position: relative;
   display: block;
   max-width: 100%;
-  margin: 3px 0 6px 0;
+  margin: 6px 0 6px 0;
   clear: both;
 }
 
@@ -1040,7 +1040,7 @@ body.gander-mode .redacted-text:hover {
   width: 100%;
   max-width: 450px;
   height: 220px;
-  margin: 3px 0 6px 0;
+  margin: 6px 0 6px 0;
   background: #1A1918;
   border-radius: 12px;
   border: 1px solid rgba(46, 43, 42, 0.25);
