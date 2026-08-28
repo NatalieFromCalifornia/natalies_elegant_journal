@@ -340,8 +340,8 @@ const Renderer = {
     // Extract image markdown tags OR raw data:image Base64 strings OR short img-xxx IDs
     const images = [];
 
-    // Pass 1: Markdown image syntax ![alt|w=320px](url) or ![alt](url)
-    let cleanText = text.replace(/!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)/gi, (match, altText, dataUrl) => {
+    // Pass 1: Redacted Markdown image syntax ||![alt](url)||
+    let cleanText = text.replace(/\|\|!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)\|\|/gi, (match, altText, dataUrl) => {
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
       if (actualUrl && !actualUrl.startsWith("img-")) {
         let widthStyle = "";
@@ -349,15 +349,31 @@ const Renderer = {
         if (wMatch) {
           widthStyle = `width: ${wMatch[1]};`;
         }
-        images.push({ dataUrl: actualUrl, widthStyle });
+        const rawTag = `![${altText}](${dataUrl})`;
+        images.push({ dataUrl: actualUrl, widthStyle, isRedacted: true, rawTag });
         return `___IMG_PLACEHOLDER_${images.length - 1}___`;
       }
       return "";
     });
 
-    // Pass 2: Raw unparsed data:image Base64 URLs
+    // Pass 2: Unredacted Markdown image syntax ![alt|w=320px](url) or ![alt](url)
+    cleanText = cleanText.replace(/!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)/gi, (match, altText, dataUrl) => {
+      const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
+      if (actualUrl && !actualUrl.startsWith("img-")) {
+        let widthStyle = "";
+        const wMatch = altText.match(/w=(\d+px|\d+%)/i) || altText.match(/(\d+px|\d+%);?/i);
+        if (wMatch) {
+          widthStyle = `width: ${wMatch[1]};`;
+        }
+        images.push({ dataUrl: actualUrl, widthStyle, isRedacted: false, rawTag: match });
+        return `___IMG_PLACEHOLDER_${images.length - 1}___`;
+      }
+      return "";
+    });
+
+    // Pass 3: Raw unparsed data:image Base64 URLs
     cleanText = cleanText.replace(/(data:image\/[a-zA-Z0-9\/+;=,-]+)/gi, (match, dataUrl) => {
-      images.push({ dataUrl, widthStyle: "" });
+      images.push({ dataUrl, widthStyle: "", isRedacted: false, rawTag: match });
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
@@ -369,10 +385,14 @@ const Renderer = {
     .replace(/\n/g, '<br>');
 
     // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
-    images.forEach(({ dataUrl, widthStyle }, idx) => {
+    images.forEach(({ dataUrl, widthStyle, isRedacted, rawTag }, idx) => {
       const styleAttr = widthStyle ? `style="${widthStyle}"` : '';
+      const redactBtnText = isRedacted ? "🔓 UNREDACT" : "🔒 REDACT";
+      const redactClass = isRedacted ? "redacted-img-container" : "";
+
       const controlsHtml = reminisceUnlocked ? `
-        <div class="img-resize-bar" title="Quick size presets">
+        <div class="img-resize-bar" title="Image actions & size presets">
+          <button type="button" class="btn-img-redact" data-img-idx="${idx}" data-raw-tag="${encodeURIComponent(rawTag)}" data-is-redacted="${isRedacted}">${redactBtnText}</button>
           <button type="button" class="btn-img-size" data-size="280px">280px</button>
           <button type="button" class="btn-img-size" data-size="450px">450px</button>
           <button type="button" class="btn-img-size" data-size="100%">100%</button>
@@ -380,7 +400,14 @@ const Renderer = {
         <div class="img-resize-handle" title="Drag corner to resize image">⇲</div>
       ` : '';
 
-      const imgTag = `<div class="journal-img-container" data-img-idx="${idx}">${controlsHtml}<img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /></div>`;
+      const redactedOverlay = isRedacted ? `
+        <div class="redacted-img-overlay" title="Redacted Image Attachment">
+          <span class="redacted-img-lock-icon">🔒</span>
+          <span class="redacted-img-text">REDACTED ATTACHMENT</span>
+        </div>
+      ` : '';
+
+      const imgTag = `<div class="journal-img-container ${redactClass}" data-img-idx="${idx}">${controlsHtml}${redactedOverlay}<img class="journal-entry-img" ${styleAttr} src="${dataUrl.trim()}" alt="Journal entry attachment" loading="lazy" /></div>`;
       escaped = escaped.replace(`___IMG_PLACEHOLDER_${idx}___`, imgTag);
     });
 
@@ -1496,8 +1523,48 @@ document.addEventListener("DOMContentLoaded", () => {
     UI.showNotification(`Image resized to ${newWidthStyle}.`);
   }
 
-  // Handle Quick Size Preset Button Clicks
+  // Handle Quick Size Preset Button & Redact Button Clicks
   timelineFeed.addEventListener("click", async (e) => {
+    const redactBtn = e.target.closest(".btn-img-redact");
+    if (redactBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const container = redactBtn.closest(".journal-img-container");
+      const row = redactBtn.closest(".timeline-row");
+      if (!container || !row) return;
+
+      const cardId = row.dataset.id;
+      const entry = DB.getPrivateEntries().find(item => item.id === cardId);
+      if (!entry) return;
+
+      const rawTag = decodeURIComponent(redactBtn.dataset.rawTag || "");
+      const isRedacted = redactBtn.dataset.isRedacted === "true";
+
+      if (isRedacted) {
+        // Unredact image: replace ||rawTag|| with rawTag
+        const targetRedacted = `||${rawTag}||`;
+        if (entry.victorianContent.includes(targetRedacted)) {
+          entry.victorianContent = entry.victorianContent.replace(targetRedacted, rawTag);
+        } else {
+          // Fallback regex search for redacted image tag
+          entry.victorianContent = entry.victorianContent.replace(/\|\|(!\[[\s\S]*?\]\([^)]+\))\|\|/i, "$1");
+        }
+        UI.showNotification("Image unredacted.");
+      } else {
+        // Redact image: replace rawTag with ||rawTag||
+        if (rawTag && entry.victorianContent.includes(rawTag)) {
+          entry.victorianContent = entry.victorianContent.replace(rawTag, `||${rawTag}||`);
+        } else {
+          // Fallback search for any unredacted image tag in entry
+          entry.victorianContent = entry.victorianContent.replace(/(!\[[\s\S]*?\]\([^)]+\))/i, "||$1||");
+        }
+        UI.showNotification("Image redacted.");
+      }
+
+      await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+      renderTimeline();
+      return;
+    }
+
     const sizeBtn = e.target.closest(".btn-img-size");
     if (!sizeBtn || !reminisceUnlocked) return;
 
