@@ -1032,26 +1032,28 @@ body.gander-mode .redacted-text:hover {
 
 .public-redacted-box {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 18px;
-  margin: 4px 0;
+  width: 100%;
+  max-width: 450px;
+  height: 220px;
+  margin: 6px 0;
   background: #1A1918;
   border-radius: 12px;
-  border: 1px solid rgba(46, 43, 42, 0.2);
-  color: #8E8A85;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  border: 1px solid rgba(46, 43, 42, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  color: #D4AF37;
+  user-select: none;
+  clear: both;
 }
 
 .public-redacted-box .lucide-lock-icon {
-  width: 16px;
-  height: 16px;
-  stroke: #8E8A85;
-  filter: none;
+  width: 26px;
+  height: 26px;
+  stroke: #D4AF37;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 

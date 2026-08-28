@@ -22,8 +22,8 @@ const DEFAULT_SETTINGS = {
 function maskSecrets(text) {
   if (!text) return "";
   return text.replace(/\|\|([\s\S]*?)\|\|/g, (match, p1) => {
-    // If secret contains an image tag or data Base64 URL, replace with clean placeholder tag
-    if (/!\[[\s\S]*?\]\(|data:image\/|img-/i.test(p1)) {
+    // If secret contains an image tag, data Base64 URL, or legacy block characters, replace with clean placeholder tag
+    if (/!\[[\s\S]*?\]\(|data:image\/|img-/i.test(p1) || p1.includes("█")) {
       return `||[REDACTED_IMAGE]||`;
     }
     const masked = p1.replace(/[^\s]/g, "█");
@@ -386,8 +386,9 @@ const Renderer = {
       return `___IMG_PLACEHOLDER_${images.length - 1}___`;
     });
 
-    // Replace ||[REDACTED_IMAGE]|| tags in public mode
-    cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/g, `<div class="public-redacted-box">${lucideLockSvg}<span>REDACTED ATTACHMENT</span></div>`);
+    // Replace ||[REDACTED_IMAGE]|| tags and legacy 30+ █ block characters in public mode with image-proportioned redacted box
+    cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/gi, `<div class="public-redacted-box">${lucideLockSvg}</div>`);
+    cleanText = cleanText.replace(/(?:\|\|)?█{30,}(?:\|\|)?/g, `<div class="public-redacted-box">${lucideLockSvg}</div>`);
 
     // Clean up empty lines & excessive newlines surrounding image placeholders before \n -> <br>
     cleanText = cleanText.replace(/\n*___IMG_PLACEHOLDER_(\d+)___\n*/g, '\n___IMG_PLACEHOLDER_$1___\n');
