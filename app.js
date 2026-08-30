@@ -687,6 +687,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnHeaderLogout = document.getElementById("btn-header-logout");
   const headerLogoutGroup = document.getElementById("header-logout-group");
   const welcomeState = document.getElementById("welcome-state");
+  const feedLoadingState = document.getElementById("feed-loading-state");
   const timelineFeed = document.getElementById("timeline-feed");
   const btnRecordNew = document.getElementById("btn-record-new");
 
@@ -840,86 +841,123 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsModel.value = settings.model || "gemini-3.5-flash";
   }
 
-  // Render list of entries
+  let renderToken = 0;
+
+  // Render list of entries progressively (newest first, instant first entry render)
   function renderTimeline() {
+    renderToken++;
+    const currentToken = renderToken;
+
     const entries = reminisceUnlocked ? DB.getPrivateEntries() : DB.getPublicEntries();
     
-    if (entries.length === 0) {
-      welcomeState.style.display = "block";
+    if (!entries || entries.length === 0) {
+      if (feedLoadingState) feedLoadingState.style.display = "none";
+      if (welcomeState) welcomeState.style.display = "block";
       timelineFeed.innerHTML = "";
-    } else {
-      welcomeState.style.display = "none";
-      timelineFeed.innerHTML = "";
+      return;
+    }
 
-      entries.forEach((entry) => {
-        const row = document.createElement("div");
-        row.className = "timeline-row";
-        row.dataset.id = entry.id;
+    if (welcomeState) welcomeState.style.display = "none";
+    if (feedLoadingState) feedLoadingState.style.display = "none";
 
-        const dateParts = Renderer.getDateParts(entry.date || entry.createdAt);
-        const formattedTime = Renderer.formatTime(entry.date || entry.createdAt);
-        const formattedEdited = Renderer.formatFullDateTime(entry.updatedAt);
+    // Sort entries strictly newest first (by date or createdAt descending)
+    entries.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
 
-        const renderText = reminisceUnlocked ? entry.victorianContent : entry.publicContent;
-        const editRawVal = reminisceUnlocked ? (entry.rawContent || "") : "";
+    // Clear timeline feed
+    timelineFeed.innerHTML = "";
 
-        const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
-        const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
+    function createRowElement(entry) {
+      const row = document.createElement("div");
+      row.className = "timeline-row";
+      row.dataset.id = entry.id;
 
-        row.innerHTML = `
-          <div class="timeline-date">
-            <span class="date-day">${dateParts.monthDay}</span>
-            <span class="date-year">${dateParts.year}</span>
-          </div>
-          <div class="timeline-node-container">
-            <div class="timeline-node"></div>
-          </div>
-          <div class="timeline-content">
-            <!-- VIEW STATE -->
-            <div class="card-view-state">
-              <div class="entry-card-header">
-                <span class="entry-timestamp">${formattedTime}</span>
-                <button class="btn-more">...</button>
-                <div class="context-menu">
-                  <button class="context-menu-item btn-card-edit-trigger" data-id="${entry.id}">Edit</button>
-                  <button class="context-menu-item btn-card-delete" data-id="${entry.id}">Discard</button>
-                </div>
-              </div>
-              <div class="entry-body card-body-text victorian">${Renderer.render(renderText)}</div>
-              <div class="entry-card-footer" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Edited ${formattedEdited}</span>
-                ${directBadgeHtml}
+      const dateParts = Renderer.getDateParts(entry.date || entry.createdAt);
+      const formattedTime = Renderer.formatTime(entry.date || entry.createdAt);
+      const formattedEdited = Renderer.formatFullDateTime(entry.updatedAt);
+
+      const renderText = reminisceUnlocked ? entry.victorianContent : entry.publicContent;
+      const editRawVal = reminisceUnlocked ? (entry.rawContent || "") : "";
+
+      const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
+      const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
+
+      row.innerHTML = `
+        <div class="timeline-date">
+          <span class="date-day">${dateParts.monthDay}</span>
+          <span class="date-year">${dateParts.year}</span>
+        </div>
+        <div class="timeline-node-container">
+          <div class="timeline-node"></div>
+        </div>
+        <div class="timeline-content">
+          <!-- VIEW STATE -->
+          <div class="card-view-state">
+            <div class="entry-card-header">
+              <span class="entry-timestamp">${formattedTime}</span>
+              <button class="btn-more">...</button>
+              <div class="context-menu">
+                <button class="context-menu-item btn-card-edit-trigger" data-id="${entry.id}">Edit</button>
+                <button class="context-menu-item btn-card-delete" data-id="${entry.id}">Discard</button>
               </div>
             </div>
+            <div class="entry-body card-body-text victorian">${Renderer.render(renderText)}</div>
+            <div class="entry-card-footer" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Edited ${formattedEdited}</span>
+              ${directBadgeHtml}
+            </div>
+          </div>
 
-            <!-- EDIT STATE -->
-            <div class="card-edit-state" style="display: none;" data-mode="raw">
-              <div class="edit-card">
-                <div class="edit-mode-toggle">
-                  <button type="button" class="btn-toggle-edit active" data-mode="raw">RAW TEXT</button>
-                  <button type="button" class="btn-toggle-edit" data-mode="rewrite">REWRITE</button>
-                </div>
-                <div class="edit-label">JOURNAL ENTRY</div>
-                <textarea class="edit-textarea card-edit-textarea" placeholder="enter your recollections">${editRawVal}</textarea>
-                
-                <!-- Card Inner Loader -->
-                <div class="card-loading card-edit-loading" style="display: none;">
-                  <span class="loading-text">Transcribing entry...</span>
-                  <div class="loading-bar"></div>
-                </div>
+          <!-- EDIT STATE -->
+          <div class="card-edit-state" style="display: none;" data-mode="raw">
+            <div class="edit-card">
+              <div class="edit-mode-toggle">
+                <button type="button" class="btn-toggle-edit active" data-mode="raw">RAW TEXT</button>
+                <button type="button" class="btn-toggle-edit" data-mode="rewrite">REWRITE</button>
+              </div>
+              <div class="edit-label">JOURNAL ENTRY</div>
+              <textarea class="edit-textarea card-edit-textarea" placeholder="enter your recollections">${editRawVal}</textarea>
+              
+              <!-- Card Inner Loader -->
+              <div class="card-loading card-edit-loading" style="display: none;">
+                <span class="loading-text">Transcribing entry...</span>
+                <div class="loading-bar"></div>
+              </div>
 
-                <div class="edit-actions">
-                  <button type="button" class="btn-text btn-card-image-upload" data-id="${entry.id}">🖼️ IMAGE</button>
-                  <button class="btn-text btn-card-edit-cancel" data-id="${entry.id}">CANCEL</button>
-                  <button class="btn-pill btn-card-edit-done active" data-id="${entry.id}">DONE</button>
-                </div>
+              <div class="edit-actions">
+                <button type="button" class="btn-text btn-card-image-upload" data-id="${entry.id}">🖼️ IMAGE</button>
+                <button class="btn-text btn-card-edit-cancel" data-id="${entry.id}">CANCEL</button>
+                <button class="btn-pill btn-card-edit-done active" data-id="${entry.id}">DONE</button>
               </div>
             </div>
           </div>
-        `;
-        
-        timelineFeed.appendChild(row);
-      });
+        </div>
+      `;
+      return row;
+    }
+
+    // Step 0: Render first (newest) entry immediately so user sees content instantly!
+    const firstEntry = entries[0];
+    timelineFeed.appendChild(createRowElement(firstEntry));
+
+    // Step 1+: Stream remaining entries in non-blocking 16ms micro-batches
+    if (entries.length > 1) {
+      let index = 1;
+      const batchSize = 3;
+
+      function renderNextBatch() {
+        if (currentToken !== renderToken) return;
+        const end = Math.min(index + batchSize, entries.length);
+        const fragment = document.createDocumentFragment();
+        for (let i = index; i < end; i++) {
+          fragment.appendChild(createRowElement(entries[i]));
+        }
+        timelineFeed.appendChild(fragment);
+        index = end;
+        if (index < entries.length) {
+          setTimeout(renderNextBatch, 16);
+        }
+      }
+      setTimeout(renderNextBatch, 16);
     }
   }
 

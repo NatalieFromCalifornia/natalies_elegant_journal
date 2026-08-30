@@ -494,6 +494,63 @@ body {
   to { left: 100%; }
 }
 
+/* Vintage Loading Indicator for Timeline Feed */
+.feed-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  margin: 20px auto;
+  max-width: 450px;
+  background: var(--bg-color);
+  border: 1px dashed rgba(46, 43, 42, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(46, 43, 42, 0.04);
+  text-align: center;
+}
+
+.feed-loading-icon {
+  font-size: 20px;
+  color: var(--accent-color, #8b5a2b);
+  animation: spin-pulse 2s infinite ease-in-out;
+}
+
+@keyframes spin-pulse {
+  0% { transform: scale(1) rotate(0deg); opacity: 0.7; }
+  50% { transform: scale(1.25) rotate(180deg); opacity: 1; }
+  100% { transform: scale(1) rotate(360deg); opacity: 0.7; }
+}
+
+.feed-loading-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+}
+
+.feed-loading-bar {
+  width: 120px;
+  height: 2px;
+  background-color: rgba(46, 43, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.feed-loading-bar .feed-loading-progress {
+  width: 40%;
+  height: 100%;
+  background-color: var(--ink-color);
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: slide 1.4s infinite linear;
+}
+
 /* Bottom feed footer container */
 .feed-footer {
   display: flex;
@@ -1056,5 +1113,98 @@ body.gander-mode .redacted-text:hover {
   stroke: #D4AF37;
   stroke-width: 1.8;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* Comprehensive Mobile Viewport Responsiveness Rules */
+@media (max-width: 650px) {
+  .flow-container {
+    padding: 16px 8px 120px;
+    overflow-x: hidden;
+  }
+
+  .timeline-container {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Optimized 3-column timeline row grid for narrow mobile screens */
+  .timeline-row {
+    grid-template-columns: 50px 20px 1fr;
+    margin-bottom: 20px;
+  }
+
+  .timeline-date {
+    padding-top: 14px;
+  }
+
+  .date-day {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  .date-year {
+    font-size: 11px;
+  }
+
+  .timeline-node-container {
+    padding-top: 18px;
+  }
+
+  .timeline-content {
+    min-width: 0; /* Critical: prevents grid column from expanding beyond screen width */
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Composer & Edit Card Responsiveness */
+  .edit-card {
+    padding: 14px 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .edit-textarea {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 14px;
+    padding: 4px 0;
+  }
+
+  /* Mobile Action Bar: Wraps buttons fluidly so DONE / submit button is 100% visible and reachable */
+  .edit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 6px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 12px;
+  }
+
+  .edit-actions .btn-text,
+  .edit-actions .btn-pill {
+    font-size: 10px;
+    padding: 6px 10px;
+    letter-spacing: 0.05em;
+  }
+
+  .edit-actions .btn-pill {
+    padding: 6px 16px;
+    margin-left: auto; /* Keeps DONE / Submit button right-aligned on bottom row */
+  }
+
+  .feed-loading-card {
+    padding: 32px 16px;
+    margin: 12px auto;
+    width: 90%;
+  }
+
+  .public-redacted-box {
+    height: 160px;
+  }
 }
 

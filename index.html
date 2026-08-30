@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7.0">
+  <link rel="stylesheet" href="style.css?v=7.1">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -92,6 +92,13 @@
         <!-- The dynamic timeline feed -->
         <div id="timeline-feed" class="timeline-feed">
           <!-- Entries loaded dynamically in row format -->
+        </div>
+
+        <!-- Feed Loading State Indicator -->
+        <div id="feed-loading-state" class="feed-loading-card" style="display: flex;">
+          <span class="feed-loading-icon">✦</span>
+          <span class="feed-loading-text">RECOLLECTING ENTRIES...</span>
+          <div class="feed-loading-bar"><div class="feed-loading-progress"></div></div>
         </div>
 
         <!-- Welcome State if Empty -->
@@ -215,6 +222,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=7.0"></script>
+  <script src="app.js?v=7.1"></script>
 </body>
 </html>
