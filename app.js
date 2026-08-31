@@ -14,8 +14,8 @@ Output ONLY the rewritten prose. Do not include any introductions, titles, or co
 
 const DEFAULT_SETTINGS = {
   apiKey: "",
-  model: "gemini-3.5-flash",
-  psychModel: "gemini-2.5-pro",
+  model: "gemini-2.5-flash",
+  psychModel: "gemini-3.1-pro-preview",
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION
 };
 
@@ -603,7 +603,7 @@ const AIEngine = {
       return `\n${token}\n`;
     });
 
-    const model = settings.model || "gemini-3.5-flash";
+    const model = settings.model || "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
 
     const MANDATORY_SYSTEM_HEADER = `CRITICAL DIRECTIVE: You are a silent, non-conversational text editor and transcriber ONLY. Output ONLY the processed journal entry text itself. NEVER speak directly to the user. NEVER express sympathy, offer unsolicited advice, suggest therapy, or add conversational preambles/postscripts (such as "I'm sorry you are feeling", "As an AI", "I hope things get better", "consider reaching out to a professional"). NEVER use the first person ("I", "my", "we"). Respond WITH THE REWRITTEN JOURNAL TEXT ONLY.\n\n`;
@@ -811,7 +811,7 @@ const PsychEngine = {
     }
 
     // STRICT: Use ONLY the chosen model with ZERO fallbacks
-    const currentModel = settings.psychModel || settings.model || "gemini-2.5-pro";
+    const currentModel = settings.psychModel || "gemini-3.1-pro-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
 
     const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
@@ -1179,9 +1179,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const settings = DB.getSettings();
     settingsSystemInstruction.value = settings.systemInstruction;
     settingsApiKey.value = settings.apiKey || "";
-    settingsModel.value = settings.model || "gemini-3.5-flash";
+    settingsModel.value = settings.model || "gemini-2.5-flash";
     if (settingsPsychModel) {
-      settingsPsychModel.value = settings.psychModel || "gemini-2.5-pro";
+      settingsPsychModel.value = settings.psychModel || "gemini-3.1-pro-preview";
     }
   }
 
@@ -2271,7 +2271,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const settings = DB.getSettings();
     settingsSystemInstruction.value = settings.systemInstruction;
     settingsApiKey.value = settings.apiKey || "";
-    settingsModel.value = settings.model || "gemini-3.5-flash";
+    settingsModel.value = settings.model || "gemini-2.5-flash";
+    if (settingsPsychModel) {
+      settingsPsychModel.value = settings.psychModel || "gemini-3.1-pro-preview";
+    }
     
     let matchedStep = 2;
     for (let s = 1; s <= 5; s++) {
