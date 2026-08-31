@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9.5">
+  <link rel="stylesheet" href="style.css?v=9.6">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -294,33 +294,54 @@
 
     <!-- Annotate Options Modal -->
     <div id="modal-annotate-options" class="modal-overlay">
-      <div class="modal-card">
+      <div class="modal-card annotate-modal-card">
         <div class="modal-header">
-          <h2>ANNOTATE REFLECTIONS</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg style="width: 15px; height: 15px; fill: none; stroke: var(--accent-color, #8b5a2b); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <h2 style="letter-spacing: 0.12em; font-size: 13px; text-transform: uppercase;">OBSERVER ANNOTATIONS</h2>
+          </div>
           <button id="btn-close-annotate-options" class="btn-close-retro" title="Close">[ X ]</button>
         </div>
-        <div class="modal-body">
-          <p style="font-family: var(--font-serif); font-size: 15px; line-height: 1.5; margin-bottom: 16px;">
-            Choose whether to generate an annotation for the next unannotated reflection or process all missing reflections chronologically.
+        <div class="modal-body" style="padding: 22px 24px;">
+          <p class="annotate-modal-intro">
+            Engage the longitudinal observer to document clinical commentary and behavioral analysis across your timeline reflections.
           </p>
-          <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button type="button" id="btn-annotate-next" class="btn-retro" style="padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
-              <div style="text-align: left;">
-                <div style="font-weight: 700; font-family: var(--font-sans); font-size: 12px;">✦ ANNOTATE NEXT</div>
-                <div style="font-family: var(--font-serif); font-size: 13px; color: var(--ink-muted); margin-top: 2px;">Annotate only the oldest entry currently missing notes</div>
+          
+          <div class="annotate-options-grid">
+            <!-- Option 1: Annotate Next -->
+            <div id="btn-annotate-next" class="annotate-option-card" role="button" tabindex="0">
+              <div class="annotate-option-icon">
+                <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
               </div>
-              <span style="font-family: var(--font-mono); font-size: 12px;">→</span>
-            </button>
-            <button type="button" id="btn-annotate-all" class="btn-retro active" style="padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
-              <div style="text-align: left;">
-                <div style="font-weight: 700; font-family: var(--font-sans); font-size: 12px;">✦ ANNOTATE ALL</div>
-                <div style="font-family: var(--font-serif); font-size: 13px; opacity: 0.9; margin-top: 2px;">Sequentially annotate all missing reflections (oldest to newest)</div>
+              <div class="annotate-option-content">
+                <div class="annotate-option-title-row">
+                  <span class="annotate-option-title">ANNOTATE NEXT</span>
+                  <span class="annotate-badge">SINGLE ENTRY</span>
+                </div>
+                <div class="annotate-option-desc">
+                  Analyzes only the oldest unannotated reflection in your timeline for careful, step-by-step reading.
+                </div>
               </div>
-              <span style="font-family: var(--font-mono); font-size: 12px;">→</span>
-            </button>
+            </div>
+
+            <!-- Option 2: Annotate All -->
+            <div id="btn-annotate-all" class="annotate-option-card active-card" role="button" tabindex="0">
+              <div class="annotate-option-icon">
+                <svg viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+              </div>
+              <div class="annotate-option-content">
+                <div class="annotate-option-title-row">
+                  <span class="annotate-option-title">ANNOTATE ALL</span>
+                  <span class="annotate-badge accent-badge">CHRONOLOGICAL BATCH</span>
+                </div>
+                <div class="annotate-option-desc">
+                  Sequentially generates case notes across all missing entries from oldest to newest with cumulative historical memory.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="justify-content: flex-end;">
           <button type="button" id="btn-cancel-annotate-options" class="btn-retro">CANCEL</button>
         </div>
       </div>
@@ -356,6 +377,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=9.5"></script>
+  <script src="app.js?v=9.6"></script>
 </body>
 </html>
