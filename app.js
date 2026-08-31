@@ -899,6 +899,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnHeaderAdd = document.getElementById("btn-header-add");
   const btnToggleAnnotations = document.getElementById("btn-toggle-annotations");
   const btnSyncAnnotations = document.getElementById("btn-sync-annotations");
+  const observeControlGroup = document.getElementById("observe-control-group");
   const btnSettings = document.getElementById("btn-settings");
   const btnHeaderLogout = document.getElementById("btn-header-logout");
   const headerLogoutGroup = document.getElementById("header-logout-group");
@@ -1033,8 +1034,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "inline-flex";
-      if (btnToggleAnnotations) btnToggleAnnotations.style.display = "inline-flex";
-      if (btnSyncAnnotations) btnSyncAnnotations.style.display = "inline-flex";
+      if (observeControlGroup) observeControlGroup.style.display = "inline-flex";
       btnSettings.style.display = "flex";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "flex";
 
@@ -1048,8 +1048,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.add("gander-mode");
       btnUnlock.style.display = "flex";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "none";
-      if (btnToggleAnnotations) btnToggleAnnotations.style.display = "none";
-      if (btnSyncAnnotations) btnSyncAnnotations.style.display = "none";
+      if (observeControlGroup) observeControlGroup.style.display = "none";
       btnSettings.style.display = "none";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
       document.body.classList.remove("show-annotations");

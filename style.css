@@ -700,45 +700,93 @@ body.show-annotations .entry-annotation-panel {
   animation: spin-pulse 2s infinite ease-in-out;
 }
 
-/* Subtle Header Toggle for Annotations */
-.btn-subtle-toggle {
+/* Unified Observe Action & Minimalist Toggle Switch */
+.observe-combo-btn {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(46, 43, 42, 0.04);
+  border: 1px solid rgba(46, 43, 42, 0.14);
+  border-radius: 20px;
+  padding: 3px 8px 3px 10px;
+  gap: 8px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.observe-combo-btn:hover {
+  background: rgba(46, 43, 42, 0.07);
+  border-color: rgba(46, 43, 42, 0.22);
+}
+
+.observe-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: transparent;
-  border: 1px solid transparent;
-  color: var(--ink-muted);
-  opacity: 0.45;
-  padding: 6px 8px;
-  border-radius: 6px;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-color);
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.2s ease;
+}
+
+.observe-action-btn:hover {
+  color: var(--accent-color, #8b5a2b);
+}
+
+.observe-action-btn.active svg {
+  animation: spin-pulse 1.4s infinite ease-in-out;
+}
+
+.observe-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(46, 43, 42, 0.16);
+}
+
+/* Minimalist micro-switch toggle */
+.observe-switch-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 0;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
 }
 
-.btn-subtle-toggle:hover {
-  opacity: 0.85;
-  color: var(--ink-color);
-  background: rgba(46, 43, 42, 0.05);
+.micro-switch-track {
+  width: 26px;
+  height: 14px;
+  background: rgba(46, 43, 42, 0.2);
+  border-radius: 10px;
+  position: relative;
+  display: block;
+  transition: background-color 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.btn-subtle-toggle.active {
-  opacity: 1 !important;
-  color: var(--accent-color, #8b5a2b) !important;
-  background: rgba(139, 90, 43, 0.08) !important;
-  border-color: rgba(139, 90, 43, 0.2) !important;
+.micro-switch-thumb {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.btn-subtle-toggle.active svg {
-  stroke: var(--accent-color, #8b5a2b) !important;
+/* When annotations are toggled ON */
+.observe-switch-btn.active .micro-switch-track {
+  background: var(--accent-color, #8b5a2b);
 }
 
-.btn-sync-annotations.active {
-  color: var(--accent-color, #8b5a2b) !important;
-  border-color: var(--accent-color, #8b5a2b) !important;
-}
-
-.btn-sync-annotations.active svg {
-  animation: spin-pulse 1.4s infinite ease-in-out;
+.observe-switch-btn.active .micro-switch-thumb {
+  transform: translateX(12px);
 }
 
 /* Bottom feed footer container */

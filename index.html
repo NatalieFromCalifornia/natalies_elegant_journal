@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7.6">
+  <link rel="stylesheet" href="style.css?v=7.7">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -38,16 +38,22 @@
             <span>ENTRY</span>
           </button>
 
-          <!-- Subtle Annotations Visibility Toggle (Icon-only, subtle) -->
-          <button id="btn-toggle-annotations" class="btn-subtle-toggle btn-toggle-annotations" title="Toggle Psychologist Notes" style="display: none;">
-            <svg class="brain-icon" viewBox="0 0 24 24" style="width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>
-          </button>
-
-          <!-- Explicit Sync/Generate Button for Psychologist Notes with Lucide Feather Icon -->
-          <button id="btn-sync-annotations" class="btn-menu btn-sync-annotations" title="Generate / Sync Psychologist Observations for Timeline" style="display: none;">
-            <svg class="feather-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
-            <span>OBSERVE</span>
-          </button>
+          <!-- Combined Observe Action & Minimalist Toggle Switch -->
+          <div id="observe-control-group" class="observe-combo-btn" style="display: none;">
+            <button id="btn-sync-annotations" class="observe-action-btn" title="Sync Psychologist Observations">
+              <svg class="eye-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>OBSERVE</span>
+            </button>
+            <div class="observe-divider"></div>
+            <button id="btn-toggle-annotations" class="observe-switch-btn" title="Toggle Case Notes Visibility">
+              <span class="micro-switch-track">
+                <span class="micro-switch-thumb"></span>
+              </span>
+            </button>
+          </div>
 
           <!-- MENU button shown only in Reminisce Mode -->
           <button id="btn-settings" class="btn-menu" title="Menu" style="display: none;">
@@ -245,6 +251,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=7.6"></script>
+  <script src="app.js?v=7.7"></script>
 </body>
 </html>
