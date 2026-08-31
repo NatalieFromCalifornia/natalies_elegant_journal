@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9.4">
+  <link rel="stylesheet" href="style.css?v=9.5">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -273,6 +273,15 @@
                   <input type="file" id="backup-file-input" accept=".json" style="display: none;">
                 </div>
               </div>
+
+              <!-- Danger Zone: Delete All Annotations -->
+              <div class="form-group" style="border-top: 1px dashed #d9534f; padding-top: 12px; margin-top: 16px;">
+                <label style="color: #c9302c;">DELETE ALL ANNOTATIONS</label>
+                <span class="help-text" style="display: block; margin-bottom: 10px;">Permanently wipe all commentary notes across all reflections in your journal.</span>
+                <button type="button" id="btn-delete-all-annotations" class="btn-retro" style="color: #c9302c; border-color: #c9302c; width: 100%;">
+                  <span>DELETE ALL ANNOTATIONS</span>
+                </button>
+              </div>
             </div>
           <div class="modal-footer">
             <button id="btn-reset-settings" class="btn-retro">RESET</button>
@@ -280,6 +289,63 @@
             <button type="button" id="btn-sign-out" class="btn-retro" style="color: #B22222;">LOG OUT</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Annotate Options Modal -->
+    <div id="modal-annotate-options" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>ANNOTATE REFLECTIONS</h2>
+          <button id="btn-close-annotate-options" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-family: var(--font-serif); font-size: 15px; line-height: 1.5; margin-bottom: 16px;">
+            Choose whether to generate an annotation for the next unannotated reflection or process all missing reflections chronologically.
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button type="button" id="btn-annotate-next" class="btn-retro" style="padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="text-align: left;">
+                <div style="font-weight: 700; font-family: var(--font-sans); font-size: 12px;">✦ ANNOTATE NEXT</div>
+                <div style="font-family: var(--font-serif); font-size: 13px; color: var(--ink-muted); margin-top: 2px;">Annotate only the oldest entry currently missing notes</div>
+              </div>
+              <span style="font-family: var(--font-mono); font-size: 12px;">→</span>
+            </button>
+            <button type="button" id="btn-annotate-all" class="btn-retro active" style="padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+              <div style="text-align: left;">
+                <div style="font-weight: 700; font-family: var(--font-sans); font-size: 12px;">✦ ANNOTATE ALL</div>
+                <div style="font-family: var(--font-serif); font-size: 13px; opacity: 0.9; margin-top: 2px;">Sequentially annotate all missing reflections (oldest to newest)</div>
+              </div>
+              <span style="font-family: var(--font-mono); font-size: 12px;">→</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btn-cancel-annotate-options" class="btn-retro">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete All Annotations Confirmation Modal -->
+    <div id="modal-delete-annotations" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 style="color: #c9302c;">CONFIRM DELETION</h2>
+          <button id="btn-close-delete-annotations" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-family: var(--font-serif); font-size: 15px; margin-bottom: 12px; line-height: 1.5;">
+            This will permanently remove <strong>all annotations and case notes</strong> from every journal reflection in your database. This action cannot be undone.
+          </p>
+          <p style="font-family: var(--font-sans); font-size: 11px; font-weight: 700; color: var(--ink-muted); margin-bottom: 8px; text-transform: uppercase;">
+            Please type <span style="color: #c9302c; font-family: var(--font-mono); font-weight: 700;">delete all annotations</span> to confirm:
+          </p>
+          <input type="text" id="input-confirm-delete-annotations" placeholder="delete all annotations" style="width: 100%; padding: 8px 10px; font-family: var(--font-mono); font-size: 13px; border: 1px solid var(--border-color); background: var(--bg-paper); color: var(--ink-color);">
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-delete-annotations" class="btn-retro">CANCEL</button>
+          <button id="btn-execute-delete-annotations" class="btn-retro" style="color: #c9302c; border-color: #c9302c;" disabled>DELETE ALL</button>
+        </div>
       </div>
     </div>
   </div>
@@ -290,6 +356,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=9.4"></script>
+  <script src="app.js?v=9.5"></script>
 </body>
 </html>

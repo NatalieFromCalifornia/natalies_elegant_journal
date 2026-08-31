@@ -997,17 +997,20 @@ const PsychEngine = {
     const currentModel = settings.psychModel || "gemini-3.1-pro-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
 
-    const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
-You are observing Natalie over time as a subject of interest in an engrossing longitudinal study.
-Your role is that of a documentary commentator (like Oliver Sacks or a BBC documentary expert) analyzing her internal conflicts, emotional subtext, coping mechanisms, social boundaries, personal ambitions, and behavioral evolution across time.
+    const PSYCH_SYSTEM_PROMPT = `You are an astute, objective psychologist and behavioral analyst providing clinical observations and case notes on the private journal reflections of Natalie.
+You are studying Natalie's behavioral patterns, emotional dynamics, defense mechanisms, relational boundaries, and psychological shifts across time in an authentic longitudinal study.
 
-CRITICAL GUIDELINES:
-1. Refer to her naturally as Natalie (or using pronouns she/her). Never use weird clinical aliases like "Subject N", "Subject 01", or "The Diarist".
-2. Speak in the third person as an expert analyst ("Natalie demonstrates a fascinating tension...", "Her instinct here reveals...").
-3. NEVER give direct advice or therapy ("Natalie should...", "I suggest she talk to..."). Instead, analyze what is happening psychologically.
-4. Build upon prior case notes and emotional patterns established in earlier entries, observing how her thoughts, defenses, and relationships evolve chronologically across time.
-5. Strictly AVOID mentioning, critiquing, or referencing any Victorian prose style or tonal writing. Focus entirely on her real thoughts, feelings, relationships, and human experiences.
-6. Write concise, profound, captivating commentary (2 to 4 sentences).`;
+CORE ANALYTICAL DIRECTIVES:
+1. STRICTLY NO SYCOPHANCY, CHEERLEADING, OR FORCED AFFIRMATION: Do not flatter, validate, comfort, or attempt to "empower" her. Avoid therapeutic patronizing or praise ("It is admirable that...", "She courageously...", "This powerful step shows her resilience..."). Provide cold, sharp, honest, neutral psychological observation.
+2. OBJECTIVE & UNBIASED: Observe her psychological realities candidly—her defenses, avoidance strategies, cognitive distortions, ambivalence, social anxieties, somatic expressions, genuine joys, or self-criticisms—with unvarnished intellectual curiosity and clinical detachment.
+3. REFER TO HER NATURALLY: Refer to her as Natalie (or she/her). Never use sterile clinical aliases like "the diarist" or "Subject N". Speak in the third person.
+4. NO DIRECT ADVICE OR THERAPY: Do not tell her what to do, how to fix things, or suggest coping exercises. Analyze what is actually happening beneath the surface.
+5. VARY FORMAT & LENGTH NATURALLY: Do not follow a robotic or cookie-cutter template. Tailor the commentary to the entry:
+   - For some reflections, a single incisive, penetrating observation is most fitting.
+   - For complex entries, write a multi-sentence diagnostic breakdown highlighting specific psychological tensions or contradictions.
+   - Vary your analytical lens (e.g., examining relational boundaries, defense mechanisms, somatic displacement, identity negotiation, attachment dynamics).
+6. LONGITUDINAL CONTINUITY: Connect your observations to patterns noted in prior entries and prior case notes when relevant, watching how her psychological landscape shifts over weeks and months.
+7. IGNORE STYLISTIC FLOURISHES: Strictly avoid commenting on prose style, Victorian phrasing, or grammar. Focus 100% on her authentic thoughts, emotions, actions, and real human experiences.`;
 
     // Compile chronological timeline summary with prior reflections AND prior case notes as longitudinal context
     const sortedEntries = [...allEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
@@ -1111,59 +1114,65 @@ CRITICAL GUIDELINES:
     }
   },
 
-  async autoSync() {
-    if (this.isSyncing || !reminisceUnlocked) return;
+  async annotateNext() {
     const settings = DB.getSettings();
     if (!settings.apiKey) {
-      UI.showNotification("Please set your Gemini API Key in MENU first.");
+      if (typeof UI !== "undefined" && UI.showAlert) {
+        UI.showAlert("Please configure your Gemini API Key in MENU to generate notes.", "API KEY REQUIRED");
+      }
       return;
     }
 
+    const privateEntries = DB.getPrivateEntries();
+    const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
+
+    if (missing.length === 0) {
+      UI.showNotification("All reflections already have annotations.");
+      return;
+    }
+
+    // Sort oldest first
+    missing.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+    const oldestMissing = missing[0];
+
+    UI.showNotification("Annotating next reflection...");
+    
+    // Automatically show annotations column if currently hidden
+    if (!document.body.classList.contains("show-annotations")) {
+      document.body.classList.add("show-annotations");
+      const btnToggle = document.getElementById("btn-toggle-annotations");
+      if (btnToggle) btnToggle.classList.add("active");
+      localStorage.setItem("ej_show_annotations", "true");
+    }
+
+    await this.generateForEntry(oldestMissing);
+    UI.showNotification("Annotation complete!");
+  },
+
+  async autoSync() {
+    const settings = DB.getSettings();
+    if (!settings.apiKey) {
+      if (typeof UI !== "undefined" && UI.showAlert) {
+        UI.showAlert("Please configure your Gemini API Key in MENU to generate notes.", "API KEY REQUIRED");
+      }
+      return;
+    }
+
+    const privateEntries = DB.getPrivateEntries();
+    const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
+
+    if (missing.length === 0) {
+      UI.showNotification("All reflections are already annotated.");
+      return;
+    }
+
+    // Sort oldest first
+    missing.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+
     this.isSyncing = true;
     try {
-      const privateEntries = DB.getPrivateEntries();
-      if (!privateEntries || privateEntries.length === 0) return;
-
-      // Find entries that have no annotations yet
-      const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
-
-      // STRICT: Process from OLDEST to NEWEST so longitudinal context builds sequentially
-      missing.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
-
       for (const entry of missing) {
-        if (!reminisceUnlocked) break;
-        this.activeJobs.add(entry.id);
-        this.updateCardLoading(entry.id, true);
-
-        // Fetch fresh private entries array on each iteration so previously generated notes are included in context
-        const currentPrivateEntries = DB.getPrivateEntries();
-        const noteText = await this.generateNote(entry, currentPrivateEntries);
-        this.activeJobs.delete(entry.id);
-
-        if (noteText) {
-          const newNote = {
-            id: "obs-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
-            timestamp: new Date().toISOString(),
-            tag: "ANNOTATION",
-            note: noteText
-          };
-
-          const currentPrivate = DB.getPrivateEntries();
-          const target = currentPrivate.find(e => e.id === entry.id);
-          if (target) {
-            if (!target.psychAnnotations) target.psychAnnotations = [];
-            target.psychAnnotations.push(newNote);
-            await DB.saveEntry(target);
-            this.updateCardDOM(target);
-          }
-        } else {
-          this.updateCardLoading(entry.id, false);
-          // Stop batch loop on error so user can address the alert
-          break;
-        }
-
-        // Pacing delay between entries
-        await new Promise(r => setTimeout(r, 1500));
+        await this.generateForEntry(entry);
       }
     } finally {
       this.isSyncing = false;
@@ -1435,8 +1444,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let renderToken = 0;
 
-  // Render list of entries progressively (newest first, instant first entry render)
-  function renderTimeline() {
+  // Render list of entries with rock-solid scroll preservation
+  function renderTimeline(anchorCardId = null) {
+    const savedScrollY = window.scrollY;
     renderToken++;
     const currentToken = renderToken;
 
@@ -1454,9 +1464,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sort entries strictly newest first (by date or createdAt descending)
     entries.sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
-
-    // Clear timeline feed
-    timelineFeed.innerHTML = "";
 
     function createRowElement(entry) {
       const row = document.createElement("div");
@@ -1543,29 +1550,26 @@ document.addEventListener("DOMContentLoaded", () => {
       return row;
     }
 
-    // Step 0: Render first (newest) entry immediately so user sees content instantly!
-    const firstEntry = entries[0];
-    timelineFeed.appendChild(createRowElement(firstEntry));
+    // Build all row elements in an in-memory document fragment
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < entries.length; i++) {
+      fragment.appendChild(createRowElement(entries[i]));
+    }
 
-    // Step 1+: Stream remaining entries in non-blocking 16ms micro-batches
-    if (entries.length > 1) {
-      let index = 1;
-      const batchSize = 3;
+    // Single DOM update to prevent height collapse
+    timelineFeed.innerHTML = "";
+    timelineFeed.appendChild(fragment);
 
-      function renderNextBatch() {
-        if (currentToken !== renderToken) return;
-        const end = Math.min(index + batchSize, entries.length);
-        const fragment = document.createDocumentFragment();
-        for (let i = index; i < end; i++) {
-          fragment.appendChild(createRowElement(entries[i]));
-        }
-        timelineFeed.appendChild(fragment);
-        index = end;
-        if (index < entries.length) {
-          setTimeout(renderNextBatch, 16);
-        }
+    // Seamless scroll position preservation
+    if (anchorCardId) {
+      const targetEl = document.querySelector(`.timeline-row[data-id="${anchorCardId}"]`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ block: "nearest", behavior: "instant" });
+      } else if (savedScrollY > 0) {
+        window.scrollTo({ top: savedScrollY, behavior: "instant" });
       }
-      setTimeout(renderNextBatch, 16);
+    } else if (savedScrollY > 0) {
+      window.scrollTo({ top: savedScrollY, behavior: "instant" });
     }
   }
 
@@ -1800,7 +1804,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (matchText) {
         entry.victorianContent = entry.victorianContent.replace(matchText, `||${matchText}||`);
         await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
-        renderTimeline();
+        renderTimeline(entry.id);
         UI.showNotification("Secret redacted.");
       } else {
         UI.showNotification("Highlighted text mismatch. Try again.");
@@ -1963,7 +1967,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (wordsUnchanged) {
             // Punctuation, whitespace, or formatting edit: skip Gemini API call and save formatting directly
             await DB.saveEntry(entry, updatedValue, entry.victorianContent);
-            renderTimeline();
+            renderTimeline(entry.id);
             UI.showNotification("Reflection updated.");
             return;
           }
@@ -1985,7 +1989,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           try {
             await DB.saveEntry(entry, updatedValue, rewritten);
-            renderTimeline();
+            renderTimeline(entry.id);
             UI.showNotification("Reflection updated.");
           } catch(err) {
             console.error("Edit save error:", err);
@@ -2008,7 +2012,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const node = row.querySelector(".timeline-node-container div");
           if (node) node.className = "timeline-node";
           
-          renderTimeline();
+          renderTimeline(entry.id);
           UI.showNotification("Reflection updated.");
         }
       } catch (err) {
@@ -2766,15 +2770,59 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Explicit Sync Button for Annotations (Token-Safe Manual Trigger)
-  if (btnSyncAnnotations) {
-    btnSyncAnnotations.addEventListener("click", async () => {
-      if (PsychEngine.isSyncing) return;
-      UI.showNotification("Reviewing timeline reflections...");
-      btnSyncAnnotations.classList.add("active");
-      btnSyncAnnotations.disabled = true;
+  // Modal Elements for Annotate Options & Delete All Annotations
+  const modalAnnotateOptions = document.getElementById("modal-annotate-options");
+  const btnCloseAnnotateOptions = document.getElementById("btn-close-annotate-options");
+  const btnCancelAnnotateOptions = document.getElementById("btn-cancel-annotate-options");
+  const btnAnnotateNext = document.getElementById("btn-annotate-next");
+  const btnAnnotateAll = document.getElementById("btn-annotate-all");
 
-      // Automatically show annotations column if currently hidden
+  const btnDeleteAllAnnotations = document.getElementById("btn-delete-all-annotations");
+  const modalDeleteAnnotations = document.getElementById("modal-delete-annotations");
+  const btnCloseDeleteAnnotations = document.getElementById("btn-close-delete-annotations");
+  const btnCancelDeleteAnnotations = document.getElementById("btn-cancel-delete-annotations");
+  const inputConfirmDeleteAnnotations = document.getElementById("input-confirm-delete-annotations");
+  const btnExecuteDeleteAnnotations = document.getElementById("btn-execute-delete-annotations");
+
+  // Open Annotate Choice Dialog (Next / All / Cancel)
+  if (btnSyncAnnotations && modalAnnotateOptions) {
+    btnSyncAnnotations.addEventListener("click", () => {
+      if (PsychEngine.isSyncing) return;
+      modalAnnotateOptions.style.display = "flex";
+    });
+  }
+
+  if (btnCloseAnnotateOptions) {
+    btnCloseAnnotateOptions.addEventListener("click", () => {
+      modalAnnotateOptions.style.display = "none";
+    });
+  }
+  if (btnCancelAnnotateOptions) {
+    btnCancelAnnotateOptions.addEventListener("click", () => {
+      modalAnnotateOptions.style.display = "none";
+    });
+  }
+
+  // Annotate Next (Single Oldest Unannotated Entry)
+  if (btnAnnotateNext) {
+    btnAnnotateNext.addEventListener("click", async () => {
+      modalAnnotateOptions.style.display = "none";
+      await PsychEngine.annotateNext();
+    });
+  }
+
+  // Annotate All (Chronological Batch)
+  if (btnAnnotateAll) {
+    btnAnnotateAll.addEventListener("click", async () => {
+      modalAnnotateOptions.style.display = "none";
+      if (PsychEngine.isSyncing) return;
+      
+      UI.showNotification("Reviewing timeline reflections...");
+      if (btnSyncAnnotations) {
+        btnSyncAnnotations.classList.add("active");
+        btnSyncAnnotations.disabled = true;
+      }
+
       if (!document.body.classList.contains("show-annotations")) {
         document.body.classList.add("show-annotations");
         if (btnToggleAnnotations) btnToggleAnnotations.classList.add("active");
@@ -2787,8 +2835,66 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (err) {
         console.error("Sync error:", err);
       } finally {
-        btnSyncAnnotations.classList.remove("active");
-        btnSyncAnnotations.disabled = false;
+        if (btnSyncAnnotations) {
+          btnSyncAnnotations.classList.remove("active");
+          btnSyncAnnotations.disabled = false;
+        }
+      }
+    });
+  }
+
+  // Open Delete All Annotations Confirmation Modal
+  if (btnDeleteAllAnnotations && modalDeleteAnnotations) {
+    btnDeleteAllAnnotations.addEventListener("click", () => {
+      inputConfirmDeleteAnnotations.value = "";
+      btnExecuteDeleteAnnotations.disabled = true;
+      modalDeleteAnnotations.style.display = "flex";
+      setTimeout(() => inputConfirmDeleteAnnotations.focus(), 100);
+    });
+  }
+
+  if (btnCloseDeleteAnnotations) {
+    btnCloseDeleteAnnotations.addEventListener("click", () => {
+      modalDeleteAnnotations.style.display = "none";
+    });
+  }
+  if (btnCancelDeleteAnnotations) {
+    btnCancelDeleteAnnotations.addEventListener("click", () => {
+      modalDeleteAnnotations.style.display = "none";
+    });
+  }
+
+  // Require typing exact confirmation text: "delete all annotations"
+  if (inputConfirmDeleteAnnotations && btnExecuteDeleteAnnotations) {
+    inputConfirmDeleteAnnotations.addEventListener("input", () => {
+      const isMatch = inputConfirmDeleteAnnotations.value.trim().toLowerCase() === "delete all annotations";
+      btnExecuteDeleteAnnotations.disabled = !isMatch;
+    });
+  }
+
+  // Execute Deletion of All Annotations across all entries
+  if (btnExecuteDeleteAnnotations) {
+    btnExecuteDeleteAnnotations.addEventListener("click", async () => {
+      btnExecuteDeleteAnnotations.disabled = true;
+      btnExecuteDeleteAnnotations.textContent = "DELETING...";
+
+      try {
+        const privateEntries = DB.getPrivateEntries();
+        for (const entry of privateEntries) {
+          entry.psychAnnotations = [];
+          await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+        }
+
+        modalDeleteAnnotations.style.display = "none";
+        modalSettings.style.display = "none";
+        renderTimeline();
+        UI.showNotification("All annotations have been deleted.");
+      } catch (err) {
+        console.error("Delete all annotations failed:", err);
+        UI.showAlert("Failed to delete annotations: " + err.message, "DELETE ERROR");
+      } finally {
+        btnExecuteDeleteAnnotations.disabled = false;
+        btnExecuteDeleteAnnotations.textContent = "DELETE ALL";
       }
     });
   }
