@@ -700,14 +700,36 @@ body.show-annotations .entry-annotation-panel {
   animation: spin-pulse 2s infinite ease-in-out;
 }
 
-/* Header Annotations Toggle & Sync Buttons Styling */
-.btn-toggle-annotations.active {
-  background-color: var(--ink-color) !important;
-  color: var(--bg-color) !important;
+/* Subtle Header Toggle for Annotations */
+.btn-subtle-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-muted);
+  opacity: 0.45;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.btn-toggle-annotations.active svg {
-  stroke: var(--bg-color) !important;
+.btn-subtle-toggle:hover {
+  opacity: 0.85;
+  color: var(--ink-color);
+  background: rgba(46, 43, 42, 0.05);
+}
+
+.btn-subtle-toggle.active {
+  opacity: 1 !important;
+  color: var(--accent-color, #8b5a2b) !important;
+  background: rgba(139, 90, 43, 0.08) !important;
+  border-color: rgba(139, 90, 43, 0.2) !important;
+}
+
+.btn-subtle-toggle.active svg {
+  stroke: var(--accent-color, #8b5a2b) !important;
 }
 
 .btn-sync-annotations.active {
