@@ -715,22 +715,15 @@ const PsychEngine = {
   async generateNote(targetEntry, allEntries, isRetrospective = false) {
     const settings = DB.getSettings();
     if (!settings.apiKey) {
-      if (typeof UI !== "undefined" && UI.showNotification) {
-        UI.showNotification("Please configure your Gemini API Key in MENU.");
+      if (typeof UI !== "undefined" && UI.showAlert) {
+        UI.showAlert("Please configure your Gemini API Key in MENU to generate notes.", "API KEY REQUIRED");
       }
       return null;
     }
 
-    const candidateModels = [
-      settings.psychModel,
-      "gemini-2.5-pro",
-      "gemini-2.0-flash",
-      "gemini-1.5-pro",
-      "gemini-1.5-flash"
-    ].filter(Boolean);
-
-    // Remove duplicates while keeping preferred user model first
-    const modelsToTry = [...new Set(candidateModels)];
+    // STRICT: Use ONLY the chosen model with ZERO fallbacks
+    const currentModel = settings.psychModel || settings.model || "gemini-2.5-pro";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
 
     const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
 You are observing Natalie over time as a subject of interest in an engrossing longitudinal study.
@@ -767,44 +760,40 @@ CRITICAL GUIDELINES:
       ]
     };
 
-    for (const currentModel of modelsToTry) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
-      try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          const errMsg = errData.error?.message || response.statusText;
-          console.warn(`PsychEngine model ${currentModel} returned error:`, errMsg);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.error?.message || response.statusText || `HTTP ${response.status}`;
+        console.error(`PsychEngine API Error (${currentModel}):`, errMsg);
 
-          if (response.status === 400 && errMsg && errMsg.includes("API key")) {
-            if (typeof UI !== "undefined" && UI.showNotification) {
-              UI.showNotification("Gemini API Key is invalid or expired.");
-            }
-            return null;
-          }
-          if (response.status === 429) {
-            if (typeof UI !== "undefined" && UI.showNotification) {
-              UI.showNotification("Gemini API Rate Limit reached. Please wait a moment.");
-            }
-            return null;
-          }
-          // Continue to next fallback model
-          continue;
+        if (typeof UI !== "undefined" && UI.showAlert) {
+          UI.showAlert(`Could not generate notes with model "${currentModel}".\n\nReason: ${errMsg}\n\nPlease check your model selection or API key in MENU.`, "GENERATION FAILED");
         }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text.trim();
-      } catch (e) {
-        console.warn(`PsychEngine error with ${currentModel}:`, e);
+        return null;
       }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        if (typeof UI !== "undefined" && UI.showAlert) {
+          UI.showAlert(`Model "${currentModel}" returned an empty response or was filtered by safety settings.`, "GENERATION NOTICE");
+        }
+        return null;
+      }
+      return text.trim();
+    } catch (e) {
+      console.error(`PsychEngine network error with ${currentModel}:`, e);
+      if (typeof UI !== "undefined" && UI.showAlert) {
+        UI.showAlert(`Network failure connecting to Gemini model "${currentModel}".\n\n${e.message}`, "CONNECTION ERROR");
+      }
+      return null;
     }
-    return null;
   },
 
   async autoSync() {
@@ -1028,6 +1017,37 @@ document.addEventListener("DOMContentLoaded", () => {
       }, duration);
     },
     
+    showAlert(message, title = "GENERATION NOTICE") {
+      return new Promise((resolve) => {
+        const modal = document.getElementById("modal-confirm");
+        const msgEl = document.getElementById("confirm-message");
+        const titleEl = document.getElementById("confirm-title");
+        const cancelBtn = document.getElementById("btn-confirm-cancel");
+        const actionBtn = document.getElementById("btn-confirm-action");
+        const closeBtn = document.getElementById("btn-close-confirm");
+        
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        if (cancelBtn) cancelBtn.style.display = "none";
+        if (actionBtn) actionBtn.textContent = "DISMISS";
+        modal.style.display = "flex";
+        
+        const cleanup = () => {
+          modal.style.display = "none";
+          if (cancelBtn) cancelBtn.style.display = "inline-block";
+          if (actionBtn) actionBtn.textContent = "CONFIRM";
+          actionBtn.removeEventListener("click", onDismiss);
+          closeBtn.removeEventListener("click", onDismiss);
+          resolve();
+        };
+        
+        function onDismiss() { cleanup(); }
+        
+        closeBtn.addEventListener("click", onDismiss);
+        actionBtn.addEventListener("click", onDismiss);
+      });
+    },
+
     showConfirm(message, title = "CONFIRMATION") {
       return new Promise((resolve) => {
         const modal = document.getElementById("modal-confirm");
@@ -1039,6 +1059,8 @@ document.addEventListener("DOMContentLoaded", () => {
         
         titleEl.textContent = title;
         msgEl.textContent = message;
+        if (cancelBtn) cancelBtn.style.display = "inline-block";
+        if (actionBtn) actionBtn.textContent = "CONFIRM";
         modal.style.display = "flex";
         
         const cleanup = (value) => {
@@ -1190,7 +1212,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const formattedEdited = Renderer.formatFullDateTime(entry.updatedAt);
 
       const renderText = reminisceUnlocked ? entry.victorianContent : entry.publicContent;
-      const editRawVal = reminisceUnlocked ? (entry.rawContent || "") : "";
+      const editInitialVal = reminisceUnlocked ? (entry.victorianContent || entry.rawContent || "") : "";
 
       const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
       const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
@@ -1228,14 +1250,14 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <!-- EDIT STATE -->
-          <div class="card-edit-state" style="display: none;" data-mode="raw">
+          <div class="card-edit-state" style="display: none;" data-mode="rewrite">
             <div class="edit-card">
               <div class="edit-mode-toggle">
-                <button type="button" class="btn-toggle-edit active" data-mode="raw">RAW TEXT</button>
-                <button type="button" class="btn-toggle-edit" data-mode="rewrite">REWRITE</button>
+                <button type="button" class="btn-toggle-edit" data-mode="raw">RAW TEXT</button>
+                <button type="button" class="btn-toggle-edit active" data-mode="rewrite">REWRITE</button>
               </div>
-              <div class="edit-label">JOURNAL ENTRY</div>
-              <textarea class="edit-textarea card-edit-textarea" placeholder="enter your recollections">${editRawVal}</textarea>
+              <div class="edit-label">JOURNAL REWRITE</div>
+              <textarea class="edit-textarea card-edit-textarea" placeholder="enter your recollections">${editInitialVal}</textarea>
               
               <!-- Card Inner Loader -->
               <div class="card-loading card-edit-loading" style="display: none;">
@@ -1376,9 +1398,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderTimeline();
       UI.showNotification("New reflection recorded.");
-
-      // Organically generate psychologist observation for this newly submitted entry
-      PsychEngine.generateForEntry(newEntryObj);
     } catch (e) {
       console.error("Save entry error:", e);
       UI.showNotification(e.message || "Failed to save entry.");
@@ -1725,12 +1744,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const entry = DB.getPrivateEntries().find(e => e.id === row.dataset.id);
 
-    editState.dataset.mode = "raw";
+    editState.dataset.mode = "rewrite";
     editState.querySelectorAll(".btn-toggle-edit").forEach(btn => btn.classList.remove("active"));
-    editState.querySelector('.btn-toggle-edit[data-mode="raw"]').classList.add("active");
-    editState.querySelector(".edit-label").textContent = "JOURNAL ENTRY";
+    editState.querySelector('.btn-toggle-edit[data-mode="rewrite"]').classList.add("active");
+    editState.querySelector(".edit-label").textContent = "JOURNAL REWRITE";
 
-    let initialText = entry ? entry.rawContent : "";
+    let initialText = entry ? (entry.victorianContent || entry.rawContent || "") : "";
     initialText = initialText.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
       const imgId = "img-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
       tempImageStore[imgId] = dataUrl;
@@ -1738,7 +1757,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     textarea.value = initialText;
-    delete editState.dataset.tempRaw;
+    editState.dataset.tempRaw = entry ? (entry.rawContent || "") : "";
 
     viewState.style.display = "none";
     editState.style.display = "block";
