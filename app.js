@@ -714,10 +714,23 @@ const PsychEngine = {
 
   async generateNote(targetEntry, allEntries, isRetrospective = false) {
     const settings = DB.getSettings();
-    if (!settings.apiKey) return null;
+    if (!settings.apiKey) {
+      if (typeof UI !== "undefined" && UI.showNotification) {
+        UI.showNotification("Please configure your Gemini API Key in MENU.");
+      }
+      return null;
+    }
 
-    const model = settings.psychModel || settings.model || "gemini-2.5-pro";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
+    const candidateModels = [
+      settings.psychModel,
+      "gemini-2.5-pro",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro",
+      "gemini-1.5-flash"
+    ].filter(Boolean);
+
+    // Remove duplicates while keeping preferred user model first
+    const modelsToTry = [...new Set(candidateModels)];
 
     const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
 You are observing Natalie over time as a subject of interest in an engrossing longitudinal study.
@@ -754,26 +767,53 @@ CRITICAL GUIDELINES:
       ]
     };
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) return null;
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      return text ? text.trim() : null;
-    } catch (e) {
-      console.warn("PsychEngine error:", e);
-      return null;
+    for (const currentModel of modelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.error?.message || response.statusText;
+          console.warn(`PsychEngine model ${currentModel} returned error:`, errMsg);
+
+          if (response.status === 400 && errMsg && errMsg.includes("API key")) {
+            if (typeof UI !== "undefined" && UI.showNotification) {
+              UI.showNotification("Gemini API Key is invalid or expired.");
+            }
+            return null;
+          }
+          if (response.status === 429) {
+            if (typeof UI !== "undefined" && UI.showNotification) {
+              UI.showNotification("Gemini API Rate Limit reached. Please wait a moment.");
+            }
+            return null;
+          }
+          // Continue to next fallback model
+          continue;
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text.trim();
+      } catch (e) {
+        console.warn(`PsychEngine error with ${currentModel}:`, e);
+      }
     }
+    return null;
   },
 
   async autoSync() {
     if (this.isSyncing || !reminisceUnlocked) return;
     const settings = DB.getSettings();
-    if (!settings.apiKey) return;
+    if (!settings.apiKey) {
+      UI.showNotification("Please set your Gemini API Key in MENU first.");
+      return;
+    }
 
     this.isSyncing = true;
     try {
@@ -795,7 +835,7 @@ CRITICAL GUIDELINES:
           const newNote = {
             id: "obs-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
             timestamp: new Date().toISOString(),
-            tag: "PRIMARY OBSERVATION",
+            tag: "ANNOTATION",
             note: noteText
           };
 
@@ -835,7 +875,7 @@ CRITICAL GUIDELINES:
       const newNote = {
         id: "obs-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
         timestamp: new Date().toISOString(),
-        tag: "PRIMARY OBSERVATION",
+        tag: "ANNOTATION",
         note: noteText
       };
 
@@ -888,7 +928,7 @@ CRITICAL GUIDELINES:
         return `
           <div class="psych-note-item" data-note-id="${n.id}">
             <div class="psych-note-top">
-              <span class="psych-note-tag">✦ ${n.tag || 'CASE NOTE'} · ${timeStr}</span>
+              <span class="psych-note-tag">✦ ${n.tag || 'ANNOTATION'} · ${timeStr}</span>
               <button type="button" class="btn-delete-note" data-entry-id="${entry.id}" data-note-id="${n.id}" title="Discard Note">✕</button>
             </div>
             <div class="psych-note-body">${Renderer.render(n.note)}</div>
@@ -905,12 +945,12 @@ CRITICAL GUIDELINES:
     ` : "";
 
     if (notes.length === 0 && !isLoading) {
-      notesHtml = `<div class="psych-note-body" style="color: var(--ink-muted); font-style: italic; font-size: 11px;">Pending psychological observation...</div>`;
+      notesHtml = `<div class="psych-note-body" style="color: var(--ink-muted); font-style: italic; font-size: 11px;">Pending psychological annotation...</div>`;
     }
 
     return `
       <div class="psych-panel-header">
-        <span class="psych-panel-title"><svg class="lucide-brain-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg> CASE NOTES</span>
+        <span class="psych-panel-title"><svg class="lucide-brain-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg> NOTES</span>
       </div>
       <div class="psych-notes-list">
         ${notesHtml}
@@ -2366,18 +2406,18 @@ document.addEventListener("DOMContentLoaded", () => {
       btnToggleAnnotations.classList.toggle("active", isShown);
       localStorage.setItem("ej_show_annotations", isShown ? "true" : "false");
       if (isShown) {
-        UI.showNotification("Psychologist case notes displayed.");
+        UI.showNotification("Psychologist notes displayed.");
       } else {
-        UI.showNotification("Psychologist case notes hidden.");
+        UI.showNotification("Psychologist notes hidden.");
       }
     });
   }
 
-  // Explicit Sync Button for Psychologist Observations (Token-Safe Manual Trigger)
+  // Explicit Sync Button for Psychologist Annotations (Token-Safe Manual Trigger)
   if (btnSyncAnnotations) {
     btnSyncAnnotations.addEventListener("click", async () => {
       if (PsychEngine.isSyncing) return;
-      UI.showNotification("Psychologist reviewing timeline entries...");
+      UI.showNotification("Psychologist reviewing timeline annotations...");
       btnSyncAnnotations.classList.add("active");
       btnSyncAnnotations.disabled = true;
 
@@ -2390,7 +2430,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       try {
         await PsychEngine.autoSync();
-        UI.showNotification("Psychologist observations up to date!");
+        UI.showNotification("Psychologist annotations up to date!");
       } catch (err) {
         console.error("Sync error:", err);
       } finally {
