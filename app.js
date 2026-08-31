@@ -104,6 +104,20 @@ const DB = {
     return entry;
   },
 
+  safeSetItem(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(`localStorage quota reached on '${key}'. Auto-purging snapshot archives to release storage...`);
+      localStorage.removeItem("ej_journal_snapshot_archive");
+      try {
+        localStorage.setItem(key, value);
+      } catch (retryErr) {
+        console.error(`Storage quota limit reached for '${key}':`, retryErr);
+      }
+    }
+  },
+
   // Public Cache (for Gander Mode offline / public feed fallback)
   getPublicEntries() {
     const entries = localStorage.getItem("ej_entries_public");
@@ -118,7 +132,7 @@ const DB = {
   savePublicEntries(entries) {
     // Sort NEWEST FIRST (descending date order) using safeParseDate
     entries.sort((a, b) => safeParseDate(b.date || b.createdAt || b.updatedAt) - safeParseDate(a.date || a.createdAt || a.updatedAt));
-    localStorage.setItem("ej_entries_public", JSON.stringify(entries));
+    this.safeSetItem("ej_entries_public", JSON.stringify(entries));
   },
 
   // Private Cache (for Reminisce Mode offline cache)
@@ -135,7 +149,7 @@ const DB = {
   savePrivateEntries(entries) {
     // Sort NEWEST FIRST (descending date order) using safeParseDate
     entries.sort((a, b) => safeParseDate(b.date || b.createdAt || b.updatedAt) - safeParseDate(a.date || a.createdAt || a.updatedAt));
-    localStorage.setItem("ej_entries_private", JSON.stringify(entries));
+    this.safeSetItem("ej_entries_private", JSON.stringify(entries));
     this.createLocalSnapshot(entries);
   },
 
@@ -145,16 +159,24 @@ const DB = {
       const rawVault = localStorage.getItem("ej_journal_snapshot_archive");
       const vault = rawVault ? JSON.parse(rawVault) : [];
       
-      // Store timestamped snapshot
+      // Store lightweight snapshots (strip heavy Base64 image bytes from history log to save 99% space)
+      const cleanEntries = entries.map(e => ({
+        id: e.id,
+        date: e.date,
+        rawContent: (e.rawContent || "").replace(/data:image\/[a-zA-Z0-9\/+;=,-]+/g, "[image-data]"),
+        victorianContent: (e.victorianContent || "").replace(/data:image\/[a-zA-Z0-9\/+;=,-]+/g, "[image-data]"),
+        updatedAt: e.updatedAt
+      }));
+
       const snapshot = {
         timestamp: new Date().toISOString(),
-        count: entries.length,
-        entries: JSON.parse(JSON.stringify(entries))
+        count: cleanEntries.length,
+        entries: cleanEntries
       };
       vault.unshift(snapshot);
-      // Keep up to 100 historical snapshot checkpoints
-      if (vault.length > 100) vault.length = 100;
-      localStorage.setItem("ej_journal_snapshot_archive", JSON.stringify(vault));
+      // Keep up to 10 lightweight snapshot checkpoints (~25KB total)
+      if (vault.length > 10) vault.length = 10;
+      this.safeSetItem("ej_journal_snapshot_archive", JSON.stringify(vault));
     } catch (e) {
       console.warn("Snapshot archive update skipped:", e);
     }
@@ -1308,6 +1330,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize
   async function init() {
+    // Free up any previous bloated snapshot vault from localStorage quota
+    try {
+      const rawVault = localStorage.getItem("ej_journal_snapshot_archive");
+      if (rawVault && rawVault.length > 100000) {
+        localStorage.removeItem("ej_journal_snapshot_archive");
+      }
+    } catch(e) {}
+
     // 0. INSTANT LOCAL HYDRATION (0ms - Render cached feed immediately so page never waits on network)
     reminisceUnlocked = sessionStorage.getItem("ej_reminisce_unlocked") === "true";
     applyModeUI();
