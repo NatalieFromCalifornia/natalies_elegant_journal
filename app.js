@@ -135,6 +135,94 @@ const DB = {
     // Sort NEWEST FIRST (descending date order) using safeParseDate
     entries.sort((a, b) => safeParseDate(b.date || b.createdAt || b.updatedAt) - safeParseDate(a.date || a.createdAt || a.updatedAt));
     localStorage.setItem("ej_entries_private", JSON.stringify(entries));
+    this.createLocalSnapshot(entries);
+  },
+
+  createLocalSnapshot(entries) {
+    if (!entries || !Array.isArray(entries) || entries.length === 0) return;
+    try {
+      const rawVault = localStorage.getItem("ej_journal_snapshot_archive");
+      const vault = rawVault ? JSON.parse(rawVault) : [];
+      
+      // Store timestamped snapshot
+      const snapshot = {
+        timestamp: new Date().toISOString(),
+        count: entries.length,
+        entries: JSON.parse(JSON.stringify(entries))
+      };
+      vault.unshift(snapshot);
+      // Keep up to 100 historical snapshot checkpoints
+      if (vault.length > 100) vault.length = 100;
+      localStorage.setItem("ej_journal_snapshot_archive", JSON.stringify(vault));
+    } catch (e) {
+      console.warn("Snapshot archive update skipped:", e);
+    }
+  },
+
+  exportBackupJson() {
+    const entries = this.getPrivateEntries();
+    const settings = this.getSettings();
+    const backupData = {
+      app: "natalies_elegant_journal",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entriesCount: entries.length,
+      entries: entries,
+      settings: {
+        model: settings.model,
+        psychModel: settings.psychModel,
+        systemInstruction: settings.systemInstruction
+      }
+    };
+
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const d = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `natalies_journal_backup_${d}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  },
+
+  async importBackupJson(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!data || !Array.isArray(data.entries)) {
+            throw new Error("Invalid backup file: 'entries' array missing.");
+          }
+
+          const existingPrivate = this.getPrivateEntries();
+          const entryMap = new Map();
+          existingPrivate.forEach(ent => { if (ent && ent.id) entryMap.set(ent.id, ent); });
+
+          let restoredCount = 0;
+          for (const rawEntry of data.entries) {
+            const ent = this.normalizeEntry(rawEntry);
+            if (ent && ent.id) {
+              entryMap.set(ent.id, ent);
+              // Save to Firestore and local storage
+              await this.saveEntry(ent, ent.rawContent, ent.victorianContent, true);
+              restoredCount++;
+            }
+          }
+
+          resolve(restoredCount);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(new Error("Failed to read backup file."));
+      reader.readAsText(file);
+    });
   },
 
   async saveEntry(entry, rawContent = null, victorianContent = null, preserveUpdatedAt = false) {
@@ -1180,6 +1268,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const settingsSystemInstruction = document.getElementById("settings-system-instruction");
   const btnResetSettings = document.getElementById("btn-reset-settings");
   const btnSignOut = document.getElementById("btn-sign-out");
+  const btnExportBackup = document.getElementById("btn-export-backup");
+  const btnImportBackupTrigger = document.getElementById("btn-import-backup-trigger");
+  const backupFileInput = document.getElementById("backup-file-input");
 
   // States
   let activeSelection = null;
@@ -2519,6 +2610,39 @@ document.addEventListener("DOMContentLoaded", () => {
     modalSettings.style.display = "none";
     UI.showNotification("Configurations successfully updated.");
   });
+
+  // Export Journal Backup (.json)
+  if (btnExportBackup) {
+    btnExportBackup.addEventListener("click", () => {
+      DB.exportBackupJson();
+      UI.showNotification("Journal backup downloaded successfully.");
+    });
+  }
+
+  // Import / Restore Journal Backup (.json)
+  if (btnImportBackupTrigger && backupFileInput) {
+    btnImportBackupTrigger.addEventListener("click", () => {
+      backupFileInput.value = "";
+      backupFileInput.click();
+    });
+
+    backupFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const confirmed = await UI.showConfirm(`Restore entries from "${file.name}"? This will safely merge all entries from the backup into your journal.`);
+      if (!confirmed) return;
+
+      try {
+        const count = await DB.importBackupJson(file);
+        renderTimeline();
+        UI.showNotification(`Restored ${count} reflections from backup!`);
+      } catch (err) {
+        console.error("Backup restoration failed:", err);
+        UI.showAlert(`Could not restore backup file.\n\nReason: ${err.message}`, "RESTORE FAILED");
+      }
+    });
+  }
 
   // Discard / Delete specific note
   async function deletePsychAnnotation(entryId, noteId) {
