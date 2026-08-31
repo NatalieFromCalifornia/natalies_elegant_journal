@@ -71,10 +71,48 @@ const DB = {
     localStorage.setItem("ej_settings", JSON.stringify(settings));
   },
   
+  normalizeEntry(entry) {
+    if (!entry) return entry;
+    
+    // Check if we need to heal from cross-reference
+    let raw = entry.rawContent || "";
+    let vic = entry.victorianContent || "";
+    let pub = entry.publicContent || "";
+
+    if (!raw && !vic) {
+      try {
+        const publicRaw = localStorage.getItem("ej_entries_public");
+        const privateRaw = localStorage.getItem("ej_entries_private");
+        const publicArr = publicRaw ? JSON.parse(publicRaw) : [];
+        const privateArr = privateRaw ? JSON.parse(privateRaw) : [];
+        const match = [...publicArr, ...privateArr].find(e => e && e.id === entry.id && (e.rawContent || e.victorianContent || e.publicContent));
+        if (match) {
+          raw = match.rawContent || match.victorianContent || match.publicContent || "";
+          vic = match.victorianContent || match.rawContent || match.publicContent || "";
+          pub = match.publicContent || maskSecrets(vic);
+        }
+      } catch (err) {
+        console.warn("Entry healing check failed:", err);
+      }
+    }
+
+    const fallback = vic || raw || pub || entry.content || entry.body || entry.text || "";
+    entry.rawContent = raw || fallback;
+    entry.victorianContent = vic || fallback;
+    entry.publicContent = pub || maskSecrets(entry.victorianContent);
+    return entry;
+  },
+
   // Public Cache (for Gander Mode offline / public feed fallback)
   getPublicEntries() {
     const entries = localStorage.getItem("ej_entries_public");
-    return entries ? JSON.parse(entries) : [];
+    if (!entries) return [];
+    try {
+      const parsed = JSON.parse(entries);
+      return Array.isArray(parsed) ? parsed.map(e => this.normalizeEntry(e)) : [];
+    } catch(e) {
+      return [];
+    }
   },
   savePublicEntries(entries) {
     // Sort NEWEST FIRST (descending date order) using safeParseDate
@@ -85,7 +123,13 @@ const DB = {
   // Private Cache (for Reminisce Mode offline cache)
   getPrivateEntries() {
     const entries = localStorage.getItem("ej_entries_private");
-    return entries ? JSON.parse(entries) : [];
+    if (!entries) return [];
+    try {
+      const parsed = JSON.parse(entries);
+      return Array.isArray(parsed) ? parsed.map(e => this.normalizeEntry(e)) : [];
+    } catch(e) {
+      return [];
+    }
   },
   savePrivateEntries(entries) {
     // Sort NEWEST FIRST (descending date order) using safeParseDate
@@ -93,7 +137,19 @@ const DB = {
     localStorage.setItem("ej_entries_private", JSON.stringify(entries));
   },
 
-  async saveEntry(entry, rawContent, victorianContent, preserveUpdatedAt = false) {
+  async saveEntry(entry, rawContent = null, victorianContent = null, preserveUpdatedAt = false) {
+    const defaultRaw = entry.rawContent || entry.victorianContent || entry.publicContent || "";
+    const defaultVictorian = entry.victorianContent || entry.rawContent || entry.publicContent || "";
+
+    let chosenRaw = (rawContent !== null && rawContent !== undefined) ? rawContent : defaultRaw;
+    let chosenVictorian = (victorianContent !== null && victorianContent !== undefined) ? victorianContent : defaultVictorian;
+
+    // Safety fallback: Never allow an empty string to wipe out existing content on an entry
+    if (!chosenRaw && !chosenVictorian) {
+      chosenRaw = defaultRaw;
+      chosenVictorian = defaultVictorian;
+    }
+
     // Resolve short img-xxx IDs to full Base64 URLs before writing to DB
     const resolveImages = (text) => {
       if (!text) return "";
@@ -104,8 +160,8 @@ const DB = {
       });
     };
 
-    let fullRawContent = resolveImages(rawContent);
-    let fullVictorianContent = resolveImages(victorianContent);
+    let fullRawContent = resolveImages(chosenRaw);
+    let fullVictorianContent = resolveImages(chosenVictorian);
 
     // Synchronize attached images & custom width tags from raw content to victorian content
     if (fullRawContent) {
@@ -1218,11 +1274,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const dateParts = Renderer.getDateParts(entry.date || entry.createdAt);
       const formattedTime = Renderer.formatTime(entry.date || entry.createdAt);
       const formattedEdited = Renderer.formatFullDateTime(entry.updatedAt);
+      const renderText = reminisceUnlocked 
+        ? (entry.victorianContent || entry.rawContent || entry.publicContent || "") 
+        : (entry.publicContent || entry.victorianContent || entry.rawContent || "");
+      const editInitialVal = reminisceUnlocked ? (entry.victorianContent || entry.rawContent || entry.publicContent || "") : "";
 
-      const renderText = reminisceUnlocked ? entry.victorianContent : entry.publicContent;
-      const editInitialVal = reminisceUnlocked ? (entry.victorianContent || entry.rawContent || "") : "";
-
-      const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
+      const hasContent = typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim().length > 0;
+      const isDirectText = entry.isRawFallback || (hasContent && entry.rawContent.trim() === entry.victorianContent.trim());
       const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
 
       const annotationPanelHtml = reminisceUnlocked ? `
