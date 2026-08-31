@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=8.2">
+  <link rel="stylesheet" href="style.css?v=8.3">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -40,7 +40,7 @@
 
           <!-- Combined Observe Action & Minimalist Toggle Switch -->
           <div id="observe-control-group" class="observe-combo-btn" style="display: none;">
-            <button id="btn-sync-annotations" class="observe-action-btn" title="Sync Psychologist Annotations">
+            <button id="btn-sync-annotations" class="observe-action-btn" title="Annotate Timeline Reflections">
               <svg class="eye-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;">
                 <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
                 <circle cx="12" cy="12" r="3"/>
@@ -208,7 +208,7 @@
               </div>
 
               <div class="form-group">
-                <label for="settings-psych-model">PSYCHOLOGIST_MODEL (Smart Case Analyst)</label>
+                <label for="settings-psych-model">ANNOTATION_MODEL</label>
                 <select id="settings-psych-model">
                   <option value="gemini-2.5-pro">gemini-2.5-pro (Deepest Insight & Nuance)</option>
                   <option value="gemini-2.0-flash">gemini-2.0-flash (High Intelligence)</option>
@@ -216,7 +216,7 @@
                   <option value="gemini-1.5-flash">gemini-1.5-flash (Quick)</option>
                   <option value="gemini-3.7-flash">gemini-3.7-flash (Latest)</option>
                 </select>
-                <span class="help-text">Choose the reasoning model used for psychological documentary annotations.</span>
+                <span class="help-text">Choose the reasoning model used for timeline notes.</span>
               </div>
 
               <div class="form-group">
@@ -265,6 +265,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=8.2"></script>
+  <script src="app.js?v=8.3"></script>
 </body>
 </html>

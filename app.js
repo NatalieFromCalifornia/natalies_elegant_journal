@@ -707,7 +707,96 @@ const AIEngine = {
   }
 };
 
-// AI Psychologist Documentary Observer Engine (Reminisce Mode Only)
+// Premium temporary snackbar & modal alert helper (Global Scope)
+const UI = {
+  _snackbarTimeout: null,
+  showNotification(message, duration = 3000) {
+    const snackbar = document.getElementById("snackbar");
+    if (!snackbar) return;
+    
+    snackbar.textContent = message;
+    snackbar.classList.add("show");
+    
+    if (this._snackbarTimeout) {
+      clearTimeout(this._snackbarTimeout);
+    }
+    
+    this._snackbarTimeout = setTimeout(() => {
+      snackbar.classList.remove("show");
+    }, duration);
+  },
+  
+  showAlert(message, title = "GENERATION NOTICE") {
+    return new Promise((resolve) => {
+      const modal = document.getElementById("modal-confirm");
+      const msgEl = document.getElementById("confirm-message");
+      const titleEl = document.getElementById("confirm-title");
+      const cancelBtn = document.getElementById("btn-confirm-cancel");
+      const actionBtn = document.getElementById("btn-confirm-action");
+      const closeBtn = document.getElementById("btn-close-confirm");
+      if (!modal) {
+        alert(message);
+        resolve();
+        return;
+      }
+      
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+      if (cancelBtn) cancelBtn.style.display = "none";
+      if (actionBtn) actionBtn.textContent = "DISMISS";
+      modal.style.display = "flex";
+      
+      const cleanup = () => {
+        modal.style.display = "none";
+        if (cancelBtn) cancelBtn.style.display = "inline-block";
+        if (actionBtn) actionBtn.textContent = "CONFIRM";
+        actionBtn.removeEventListener("click", onDismiss);
+        closeBtn.removeEventListener("click", onDismiss);
+        resolve();
+      };
+      
+      function onDismiss() { cleanup(); }
+      
+      closeBtn.addEventListener("click", onDismiss);
+      actionBtn.addEventListener("click", onDismiss);
+    });
+  },
+
+  showConfirm(message, title = "CONFIRMATION") {
+    return new Promise((resolve) => {
+      const modal = document.getElementById("modal-confirm");
+      const msgEl = document.getElementById("confirm-message");
+      const titleEl = document.getElementById("confirm-title");
+      const cancelBtn = document.getElementById("btn-confirm-cancel");
+      const actionBtn = document.getElementById("btn-confirm-action");
+      const closeBtn = document.getElementById("btn-close-confirm");
+      
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+      if (cancelBtn) cancelBtn.style.display = "inline-block";
+      if (actionBtn) actionBtn.textContent = "CONFIRM";
+      modal.style.display = "flex";
+      
+      const cleanup = (value) => {
+        modal.style.display = "none";
+        cancelBtn.removeEventListener("click", onCancel);
+        actionBtn.removeEventListener("click", onConfirm);
+        closeBtn.removeEventListener("click", onCancel);
+        resolve(value);
+      };
+      
+      function onCancel() { cleanup(false); }
+      function onConfirm() { cleanup(true); }
+      
+      cancelBtn.addEventListener("click", onCancel);
+      closeBtn.addEventListener("click", onCancel);
+      actionBtn.addEventListener("click", onConfirm);
+    });
+  }
+};
+window.UI = UI;
+
+// AI Observer Case Notes Engine (Reminisce Mode Only)
 const PsychEngine = {
   activeJobs: new Set(),
   isSyncing: false,
@@ -838,6 +927,8 @@ CRITICAL GUIDELINES:
           }
         } else {
           this.updateCardLoading(entry.id, false);
+          // Stop batch loop on error so user can address the alert
+          break;
         }
 
         // Pacing delay between entries
@@ -889,7 +980,7 @@ CRITICAL GUIDELINES:
       if (!pulse) {
         pulse = document.createElement("div");
         pulse.className = "psych-loading-pulse";
-        pulse.innerHTML = `<span class="pulse-star">✦</span><span>Psychologist reviewing reflection...</span>`;
+        pulse.innerHTML = `<span class="pulse-star">✦</span><span>Annotating reflection...</span>`;
         panel.appendChild(pulse);
       }
     } else {
@@ -929,12 +1020,12 @@ CRITICAL GUIDELINES:
     const pulseHtml = isLoading ? `
       <div class="psych-loading-pulse">
         <span class="pulse-star">✦</span>
-        <span>Psychologist reviewing reflection...</span>
+        <span>Annotating reflection...</span>
       </div>
     ` : "";
 
     if (notes.length === 0 && !isLoading) {
-      notesHtml = `<div class="psych-note-body" style="color: var(--ink-muted); font-style: italic; font-size: 11px;">Pending psychological annotation...</div>`;
+      notesHtml = `<div class="psych-note-body" style="color: var(--ink-muted); font-style: italic; font-size: 11px;">Pending annotation...</div>`;
     }
 
     return `
@@ -997,88 +1088,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeSelection = null;
   let activeUnredactTarget = null;
   let isTranscribing = false;
-
-  // Premium temporary snackbar helper
-  const UI = {
-    _snackbarTimeout: null,
-    showNotification(message, duration = 3000) {
-      const snackbar = document.getElementById("snackbar");
-      if (!snackbar) return;
-      
-      snackbar.textContent = message;
-      snackbar.classList.add("show");
-      
-      if (this._snackbarTimeout) {
-        clearTimeout(this._snackbarTimeout);
-      }
-      
-      this._snackbarTimeout = setTimeout(() => {
-        snackbar.classList.remove("show");
-      }, duration);
-    },
-    
-    showAlert(message, title = "GENERATION NOTICE") {
-      return new Promise((resolve) => {
-        const modal = document.getElementById("modal-confirm");
-        const msgEl = document.getElementById("confirm-message");
-        const titleEl = document.getElementById("confirm-title");
-        const cancelBtn = document.getElementById("btn-confirm-cancel");
-        const actionBtn = document.getElementById("btn-confirm-action");
-        const closeBtn = document.getElementById("btn-close-confirm");
-        
-        titleEl.textContent = title;
-        msgEl.textContent = message;
-        if (cancelBtn) cancelBtn.style.display = "none";
-        if (actionBtn) actionBtn.textContent = "DISMISS";
-        modal.style.display = "flex";
-        
-        const cleanup = () => {
-          modal.style.display = "none";
-          if (cancelBtn) cancelBtn.style.display = "inline-block";
-          if (actionBtn) actionBtn.textContent = "CONFIRM";
-          actionBtn.removeEventListener("click", onDismiss);
-          closeBtn.removeEventListener("click", onDismiss);
-          resolve();
-        };
-        
-        function onDismiss() { cleanup(); }
-        
-        closeBtn.addEventListener("click", onDismiss);
-        actionBtn.addEventListener("click", onDismiss);
-      });
-    },
-
-    showConfirm(message, title = "CONFIRMATION") {
-      return new Promise((resolve) => {
-        const modal = document.getElementById("modal-confirm");
-        const msgEl = document.getElementById("confirm-message");
-        const titleEl = document.getElementById("confirm-title");
-        const cancelBtn = document.getElementById("btn-confirm-cancel");
-        const actionBtn = document.getElementById("btn-confirm-action");
-        const closeBtn = document.getElementById("btn-close-confirm");
-        
-        titleEl.textContent = title;
-        msgEl.textContent = message;
-        if (cancelBtn) cancelBtn.style.display = "inline-block";
-        if (actionBtn) actionBtn.textContent = "CONFIRM";
-        modal.style.display = "flex";
-        
-        const cleanup = (value) => {
-          modal.style.display = "none";
-          cancelBtn.removeEventListener("click", onCancel);
-          actionBtn.removeEventListener("click", onConfirm);
-          closeBtn.removeEventListener("click", onCancel);
-          resolve(value);
-        };
-        
-        function onCancel() { cleanup(false); }
-        function onConfirm() { cleanup(true); }
-        
-        cancelBtn.addEventListener("click", onCancel);
-        closeBtn.addEventListener("click", onCancel);
-        actionBtn.addEventListener("click", onConfirm);
-      });
-    }
   };
 
   // Initialize
@@ -2406,7 +2415,7 @@ document.addEventListener("DOMContentLoaded", () => {
     UI.showNotification("Configurations successfully updated.");
   });
 
-  // Discard / Delete specific psychologist note
+  // Discard / Delete specific note
   async function deletePsychAnnotation(entryId, noteId) {
     const privateEntries = DB.getPrivateEntries();
     const entry = privateEntries.find(e => e.id === entryId);
@@ -2415,28 +2424,28 @@ document.addEventListener("DOMContentLoaded", () => {
     entry.psychAnnotations = entry.psychAnnotations.filter(n => n.id !== noteId);
     await DB.saveEntry(entry);
     PsychEngine.updateCardDOM(entry);
-    UI.showNotification("Psychologist note discarded.");
+    UI.showNotification("Note discarded.");
   }
 
-  // Toggle Psychologist Annotations View Button (Pure Visibility Toggle - Zero Tokens)
+  // Toggle Annotations View Button (Pure Visibility Toggle - Zero Tokens)
   if (btnToggleAnnotations) {
     btnToggleAnnotations.addEventListener("click", () => {
       const isShown = document.body.classList.toggle("show-annotations");
       btnToggleAnnotations.classList.toggle("active", isShown);
       localStorage.setItem("ej_show_annotations", isShown ? "true" : "false");
       if (isShown) {
-        UI.showNotification("Psychologist notes displayed.");
+        UI.showNotification("Notes displayed.");
       } else {
-        UI.showNotification("Psychologist notes hidden.");
+        UI.showNotification("Notes hidden.");
       }
     });
   }
 
-  // Explicit Sync Button for Psychologist Annotations (Token-Safe Manual Trigger)
+  // Explicit Sync Button for Annotations (Token-Safe Manual Trigger)
   if (btnSyncAnnotations) {
     btnSyncAnnotations.addEventListener("click", async () => {
       if (PsychEngine.isSyncing) return;
-      UI.showNotification("Psychologist reviewing timeline annotations...");
+      UI.showNotification("Reviewing timeline reflections...");
       btnSyncAnnotations.classList.add("active");
       btnSyncAnnotations.disabled = true;
 
@@ -2449,7 +2458,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       try {
         await PsychEngine.autoSync();
-        UI.showNotification("Psychologist annotations up to date!");
+        UI.showNotification("Annotations up to date!");
       } catch (err) {
         console.error("Sync error:", err);
       } finally {
