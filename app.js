@@ -614,11 +614,33 @@ const Renderer = {
     cleanText = cleanText.replace(/\n*___PUBLIC_REDACTED_IMG_(\d+)___\n*/g, '\n___PUBLIC_REDACTED_IMG_$1___\n');
 
     let escaped = this.escapeHtml(cleanText);
+
+    // 1. Redacted secrets
     escaped = escaped.replace(/\|\|([\s\S]*?)\|\|/g, (match, secret) => {
       const attrSecret = secret.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
       return `<span class="redacted-text" data-secret="${attrSecret}" title="Click to unredact secret">${secret}</span>`;
-    })
-    .replace(/\n/g, '<br>');
+    });
+
+    // 2. Bold + Italic: ***text*** or ___text___
+    escaped = escaped.replace(/\*\*\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*\*\*/g, '<strong><em>$1</em></strong>');
+    escaped = escaped.replace(/___([^\s_][\s\S]*?[^\s_]|[^\s_])___/g, '<strong><em>$1</em></strong>');
+
+    // 3. Bold: **text** or __text__
+    escaped = escaped.replace(/\*\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*\*/g, '<strong>$1</strong>');
+    escaped = escaped.replace(/__([^\s_][\s\S]*?[^\s_]|[^\s_])__/g, '<strong>$1</strong>');
+
+    // 4. Italic: *text* or _text_
+    escaped = escaped.replace(/(^|[^\*])\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*(?!\*)/g, '$1<em>$2</em>');
+    escaped = escaped.replace(/(^|[^_])_([^\s_][\s\S]*?[^\s_]|[^\s_])_(?!_)/g, '$1<em>$2</em>');
+
+    // 5. Strikethrough: ~~text~~
+    escaped = escaped.replace(/~~([^\s~][\s\S]*?[^\s~]|[^\s~])~~/g, '<del>$1</del>');
+
+    // 6. Inline code: `code`
+    escaped = escaped.replace(/`([^`\n]+)`/g, '<code class="journal-inline-code">$1</code>');
+
+    // 7. Line breaks
+    escaped = escaped.replace(/\n/g, '<br>');
 
     // Restore public redacted image boxes AFTER escapeHtml
     publicRedactedBoxes.forEach((_, idx) => {
