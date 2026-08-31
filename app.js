@@ -770,10 +770,10 @@ function insertImageTagAtCursor(textarea, dataUrl) {
 
 // AI Engine
 const AIEngine = {
-  async rewrite(rawContent) {
+  async rewrite(rawContent, onProgress = null) {
     const settings = DB.getSettings();
     if (!settings.apiKey) {
-      throw new Error("API Key Missing: Configure your Gemini API Key in your private Firestore settings.");
+      throw new Error("API Key Missing: Please configure your Gemini API Key in MENU.");
     }
 
     // Protect image attachments by replacing Base64 tags or short img-xxx IDs with tokens before API call
@@ -813,80 +813,107 @@ const AIEngine = {
       ]
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(requestPayload)
-    });
+    const maxTries = 3;
+    const retryDelaySec = Math.max(5, parseInt(settings.annotationRetryDelay || 20, 10));
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errMsg = errData.error?.message || response.statusText;
-      console.warn("Gemini API Error, falling back to raw text:", errMsg);
-      return rawContent;
-    }
+    for (let attempt = 1; attempt <= maxTries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestPayload)
+        });
 
-    const responseData = await response.json();
-    const candidate = responseData.candidates?.[0];
-    let rawTextResponse = candidate?.content?.parts?.[0]?.text;
-    
-    // If Gemini model refused/blocked transcription (e.g. finishReason SAFETY or empty text), fallback directly to rawContent
-    if (!rawTextResponse) {
-      console.warn("Gemini candidate response was empty or blocked by safety filter. finishReason:", candidate?.finishReason);
-      return rawContent;
-    }
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.error?.message || response.statusText || `HTTP ${response.status}`;
+          console.error(`AIEngine Error (${model}) [Attempt ${attempt}/${maxTries}]:`, errMsg);
 
-    let rewritten = rawTextResponse.trim();
+          const isRateLimitOrDemand = response.status === 429 || response.status === 503 || /rate limit|quota|exhausted|high demand|overloaded|capacity|resource/i.test(errMsg);
 
-    // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited therapy advice or AI meta-commentary
-    const conversationalKeywords = [
-      "therapist",
-      "mental health professional",
-      "seek professional help",
-      "counselor",
-      "crisis helpline",
-      "988 hotline",
-      "I'm so sorry you",
-      "I am so sorry you",
-      "I am sorry to hear that you",
-      "As an AI language model",
-      "As an AI,",
-      "As an AI ",
-      "feel free to reach out to a professional",
-      "please know that you are not alone",
-      "remember to take care of yourself",
-      "if you or someone you know is struggling",
-      "please seek support",
-      "national suicide prevention",
-      "reach out to a healthcare professional"
-    ];
-    
-    const isConversational = conversationalKeywords.some(keyword => {
-      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "i");
-      return regex.test(rewritten) && !regex.test(rawContent);
-    });
+          if (isRateLimitOrDemand && attempt < maxTries) {
+            console.warn(`Rate limit / High demand hit on attempt ${attempt}. Waiting ${retryDelaySec}s before retry...`);
+            for (let s = retryDelaySec; s > 0; s--) {
+              if (onProgress) onProgress(`✦ High demand. Retrying in ${s}s (Attempt ${attempt}/${maxTries - 1})...`);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            if (onProgress) onProgress("Transcribing entry...");
+            continue;
+          }
 
-    if (isConversational) {
-      console.warn("Blocked sympathizing/conversational AI response:", rewritten);
-      // Fallback cleanly to author's raw content
-      rewritten = rawContent;
-      if (typeof UI !== "undefined" && UI.showNotification) {
-        UI.showNotification("Preserved raw reflection without AI commentary.");
+          throw new Error(errMsg);
+        }
+
+        const responseData = await response.json();
+        const candidate = responseData.candidates?.[0];
+        let rawTextResponse = candidate?.content?.parts?.[0]?.text;
+        
+        if (!rawTextResponse) {
+          throw new Error(candidate?.finishReason ? `Model filtered response (${candidate.finishReason})` : "Model returned empty response.");
+        }
+
+        let rewritten = rawTextResponse.trim();
+
+        // Therapy & Conversational Preach Filter: Detect if AI broke character into unsolicited therapy advice
+        const conversationalKeywords = [
+          "therapist",
+          "mental health professional",
+          "seek professional help",
+          "counselor",
+          "crisis helpline",
+          "988 hotline",
+          "I'm so sorry you",
+          "I am so sorry you",
+          "I am sorry to hear that you",
+          "As an AI language model",
+          "As an AI,",
+          "As an AI ",
+          "feel free to reach out to a professional",
+          "please know that you are not alone",
+          "remember to take care of yourself",
+          "if you or someone you know is struggling",
+          "please seek support",
+          "national suicide prevention",
+          "reach out to a healthcare professional"
+        ];
+        
+        const isConversational = conversationalKeywords.some(keyword => {
+          const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "i");
+          return regex.test(rewritten) && !regex.test(rawContent);
+        });
+
+        if (isConversational) {
+          console.warn("Blocked sympathizing/conversational AI response:", rewritten);
+          rewritten = rawContent;
+          if (typeof UI !== "undefined" && UI.showNotification) {
+            UI.showNotification("Preserved raw reflection without AI commentary.");
+          }
+        }
+
+        // Substitute image tokens back to their original position in the Victorian response
+        imageTokens.forEach(({ token, fullMatch }) => {
+          if (rewritten.includes(token)) {
+            rewritten = rewritten.replace(token, fullMatch);
+          } else {
+            rewritten += `\n\n${fullMatch}`;
+          }
+        });
+
+        return rewritten;
+      } catch (err) {
+        if (attempt < maxTries && (/rate limit|quota|exhausted|high demand|overloaded|capacity|network|fetch|failed to fetch/i.test(err.message))) {
+          for (let s = retryDelaySec; s > 0; s--) {
+            if (onProgress) onProgress(`✦ Connection glitch. Retrying in ${s}s (Attempt ${attempt}/${maxTries - 1})...`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+          if (onProgress) onProgress("Transcribing entry...");
+          continue;
+        }
+        throw err;
       }
     }
-
-    // Substitute image tokens back to their original position in the Victorian response
-    imageTokens.forEach(({ token, fullMatch }) => {
-      if (rewritten.includes(token)) {
-        rewritten = rewritten.replace(token, fullMatch);
-      } else {
-        rewritten += `\n\n${fullMatch}`;
-      }
-    });
-
-    return rewritten;
   }
 };
 
@@ -1636,19 +1663,28 @@ document.addEventListener("DOMContentLoaded", () => {
     btnNewDone.disabled = true;
     btnNewCancel.disabled = true;
     newCardLoading.style.display = "flex";
+    const loadingTextEl = newCardLoading.querySelector(".loading-text");
+    if (loadingTextEl) loadingTextEl.textContent = "Transcribing entry...";
 
     let rewritten = rawContent;
+    let isFallback = false;
     try {
-      rewritten = await AIEngine.rewrite(rawContent);
+      rewritten = await AIEngine.rewrite(rawContent, (statusText) => {
+        if (loadingTextEl) loadingTextEl.textContent = statusText;
+      });
     } catch (e) {
       console.warn("AI rewrite fallback to direct text:", e);
+      isFallback = true;
+      rewritten = rawContent;
+      UI.showAlert(`AI Transcription could not be completed (${e.message}). Saved as raw reflection.`, "TRANSCRIPTION NOTICE");
     }
 
     try {
       const newId = "ej-" + Date.now();
       const newEntryObj = {
         id: newId,
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
+        isRawFallback: isFallback
       };
 
       await DB.saveEntry(newEntryObj, rawContent, rewritten);
@@ -1663,7 +1699,7 @@ document.addEventListener("DOMContentLoaded", () => {
       btnNewCancel.disabled = false;
 
       renderTimeline();
-      UI.showNotification("New reflection recorded.");
+      UI.showNotification(isFallback ? "Raw reflection recorded." : "New reflection recorded.");
     } catch (e) {
       console.error("Save entry error:", e);
       UI.showNotification(e.message || "Failed to save entry.");
