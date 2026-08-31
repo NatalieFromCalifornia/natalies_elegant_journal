@@ -15,6 +15,7 @@ Output ONLY the rewritten prose. Do not include any introductions, titles, or co
 const DEFAULT_SETTINGS = {
   apiKey: "",
   model: "gemini-3.5-flash",
+  psychModel: "gemini-2.5-pro",
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION
 };
 
@@ -155,6 +156,7 @@ const DB = {
       date: entry.date || now,
       rawContent: fullRawContent,
       victorianContent: fullVictorianContent,
+      psychAnnotations: entry.psychAnnotations || [],
       createdAt: entry.createdAt || now,
       updatedAt: updatedAt
     };
@@ -669,7 +671,6 @@ const AIEngine = {
       if (rewritten.includes(token)) {
         rewritten = rewritten.replace(token, fullMatch);
       } else {
-        // Fallback safety: append image if token was omitted by model
         rewritten += `\n\n${fullMatch}`;
       }
     });
@@ -678,11 +679,226 @@ const AIEngine = {
   }
 };
 
+// AI Psychologist Documentary Observer Engine (Reminisce Mode Only)
+const PsychEngine = {
+  activeJobs: new Set(),
+  isSyncing: false,
+
+  async generateNote(targetEntry, allEntries, isRetrospective = false) {
+    const settings = DB.getSettings();
+    if (!settings.apiKey) return null;
+
+    const model = settings.psychModel || settings.model || "gemini-2.5-pro";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
+
+    const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
+You are observing Natalie over time as a subject of interest in an engrossing longitudinal study.
+Your role is that of a documentary commentator (like Oliver Sacks or a BBC documentary expert) analyzing her internal conflicts, emotional subtext, coping mechanisms, social boundaries, personal ambitions, and behavioral evolution.
+
+CRITICAL GUIDELINES:
+1. Refer to her naturally as Natalie (or using pronouns she/her). Never use weird clinical aliases like "Subject N", "Subject 01", or "The Diarist".
+2. Speak in the third person as an expert analyst ("Natalie demonstrates a fascinating tension...", "Her instinct here reveals...").
+3. NEVER give direct advice or therapy ("Natalie should...", "I suggest she talk to..."). Instead, analyze what is happening psychologically.
+4. Strictly AVOID mentioning, critiquing, or referencing any Victorian prose style or tonal writing. Focus entirely on her real thoughts, feelings, relationships, and human experiences.
+5. Write concise, profound, captivating commentary (2 to 4 sentences).`;
+
+    // Compile chronological timeline summary as longitudinal context
+    const sortedEntries = [...allEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+    const timelineContext = sortedEntries.map((e, idx) => {
+      const d = Renderer.formatFullDateTime(e.date || e.createdAt);
+      const textSample = (e.rawContent || e.victorianContent || "").replace(/!\[.*?\]\(.*?\)/g, "[Image]").substring(0, 300);
+      return `[Entry ${idx + 1} - ${d}]: "${textSample}"`;
+    }).join("\n\n");
+
+    const targetDateStr = Renderer.formatFullDateTime(targetEntry.date || targetEntry.createdAt);
+    const targetContent = targetEntry.rawContent || targetEntry.victorianContent || "";
+
+    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE:\n${timelineContext}\n\nTARGET ENTRY BEING ANALYZED:\nDate: ${targetDateStr}\nReflection: "${targetContent}"\n\nProvide your clinical case note / psychological observation on this entry in light of Natalie's ongoing reflections. Output your commentary directly.`;
+
+    const payload = {
+      contents: [{ parts: [{ text: userPrompt }] }],
+      systemInstruction: { parts: [{ text: PSYCH_SYSTEM_PROMPT }] },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      return text ? text.trim() : null;
+    } catch (e) {
+      console.warn("PsychEngine error:", e);
+      return null;
+    }
+  },
+
+  async autoSync() {
+    if (this.isSyncing || !reminisceUnlocked) return;
+    const settings = DB.getSettings();
+    if (!settings.apiKey) return;
+
+    this.isSyncing = true;
+    try {
+      const privateEntries = DB.getPrivateEntries();
+      if (!privateEntries || privateEntries.length === 0) return;
+
+      // Find entries that have no annotations yet
+      const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
+
+      for (const entry of missing) {
+        if (!reminisceUnlocked) break;
+        this.activeJobs.add(entry.id);
+        this.updateCardLoading(entry.id, true);
+
+        const noteText = await this.generateNote(entry, privateEntries);
+        this.activeJobs.delete(entry.id);
+
+        if (noteText) {
+          const newNote = {
+            id: "obs-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+            timestamp: new Date().toISOString(),
+            tag: "PRIMARY OBSERVATION",
+            note: noteText
+          };
+
+          const currentPrivate = DB.getPrivateEntries();
+          const target = currentPrivate.find(e => e.id === entry.id);
+          if (target) {
+            if (!target.psychAnnotations) target.psychAnnotations = [];
+            target.psychAnnotations.push(newNote);
+            await DB.saveEntry(target);
+            this.updateCardDOM(target);
+          }
+        } else {
+          this.updateCardLoading(entry.id, false);
+        }
+
+        // Pacing delay between entries
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    } finally {
+      this.isSyncing = false;
+    }
+  },
+
+  async generateForEntry(entry) {
+    if (!entry || !reminisceUnlocked) return;
+    const settings = DB.getSettings();
+    if (!settings.apiKey) return;
+
+    this.activeJobs.add(entry.id);
+    this.updateCardLoading(entry.id, true);
+
+    const privateEntries = DB.getPrivateEntries();
+    const noteText = await this.generateNote(entry, privateEntries);
+    this.activeJobs.delete(entry.id);
+
+    if (noteText) {
+      const newNote = {
+        id: "obs-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+        timestamp: new Date().toISOString(),
+        tag: "PRIMARY OBSERVATION",
+        note: noteText
+      };
+
+      const currentPrivate = DB.getPrivateEntries();
+      const target = currentPrivate.find(e => e.id === entry.id) || entry;
+      if (!target.psychAnnotations) target.psychAnnotations = [];
+      target.psychAnnotations.push(newNote);
+      await DB.saveEntry(target);
+      this.updateCardDOM(target);
+    } else {
+      this.updateCardLoading(entry.id, false);
+    }
+  },
+
+  updateCardLoading(entryId, isLoading) {
+    const row = document.querySelector(`.timeline-row[data-id="${entryId}"]`);
+    if (!row) return;
+    const panel = row.querySelector(".entry-annotation-panel");
+    if (!panel) return;
+    let pulse = panel.querySelector(".psych-loading-pulse");
+    if (isLoading) {
+      if (!pulse) {
+        pulse = document.createElement("div");
+        pulse.className = "psych-loading-pulse";
+        pulse.innerHTML = `<span class="pulse-star">✦</span><span>Psychologist reviewing reflection...</span>`;
+        panel.appendChild(pulse);
+      }
+    } else {
+      if (pulse) pulse.remove();
+    }
+  },
+
+  updateCardDOM(entry) {
+    const row = document.querySelector(`.timeline-row[data-id="${entry.id}"]`);
+    if (!row) return;
+    const panel = row.querySelector(".entry-annotation-panel");
+    if (!panel) return;
+    
+    panel.innerHTML = PsychEngine.renderPanelContent(entry);
+  },
+
+  renderPanelContent(entry) {
+    const notes = entry.psychAnnotations || [];
+    const isLoading = this.activeJobs.has(entry.id);
+
+    let notesHtml = "";
+    if (notes.length > 0) {
+      notesHtml = notes.map(n => {
+        const timeStr = Renderer.formatTime(n.timestamp || entry.createdAt);
+        return `
+          <div class="psych-note-item" data-note-id="${n.id}">
+            <div class="psych-note-top">
+              <span class="psych-note-tag">✦ ${n.tag || 'CASE NOTE'} · ${timeStr}</span>
+              <button type="button" class="btn-delete-note" data-entry-id="${entry.id}" data-note-id="${n.id}" title="Discard Note">✕</button>
+            </div>
+            <div class="psych-note-body">${Renderer.render(n.note)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    const pulseHtml = isLoading ? `
+      <div class="psych-loading-pulse">
+        <span class="pulse-star">✦</span>
+        <span>Psychologist reviewing reflection...</span>
+      </div>
+    ` : "";
+
+    if (notes.length === 0 && !isLoading) {
+      notesHtml = `<div class="psych-note-body" style="color: var(--ink-muted); font-style: italic; font-size: 11px;">Pending psychological observation...</div>`;
+    }
+
+    return `
+      <div class="psych-panel-header">
+        <span class="psych-panel-title">🧠 CASE NOTES</span>
+      </div>
+      <div class="psych-notes-list">
+        ${notesHtml}
+        ${pulseHtml}
+      </div>
+    `;
+  }
+};
+
 // App Controller
 document.addEventListener("DOMContentLoaded", () => {
   // Elements
   const btnUnlock = document.getElementById("btn-unlock");
   const btnHeaderAdd = document.getElementById("btn-header-add");
+  const btnToggleAnnotations = document.getElementById("btn-toggle-annotations");
+  const btnSyncAnnotations = document.getElementById("btn-sync-annotations");
   const btnSettings = document.getElementById("btn-settings");
   const btnHeaderLogout = document.getElementById("btn-header-logout");
   const headerLogoutGroup = document.getElementById("header-logout-group");
@@ -714,6 +930,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const settingsForm = document.getElementById("settings-form");
   const settingsApiKey = document.getElementById("settings-api-key");
   const settingsModel = document.getElementById("settings-model");
+  const settingsPsychModel = document.getElementById("settings-psych-model");
   const settingsSystemInstruction = document.getElementById("settings-system-instruction");
   const btnResetSettings = document.getElementById("btn-reset-settings");
   const btnSignOut = document.getElementById("btn-sign-out");
@@ -816,14 +1033,26 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "inline-flex";
+      if (btnToggleAnnotations) btnToggleAnnotations.style.display = "inline-flex";
+      if (btnSyncAnnotations) btnSyncAnnotations.style.display = "inline-flex";
       btnSettings.style.display = "flex";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "flex";
+
+      // Restore saved annotations preference
+      const savedAnnotationsPref = localStorage.getItem("ej_show_annotations") === "true";
+      if (savedAnnotationsPref) {
+        document.body.classList.add("show-annotations");
+        if (btnToggleAnnotations) btnToggleAnnotations.classList.add("active");
+      }
     } else {
       document.body.classList.add("gander-mode");
       btnUnlock.style.display = "flex";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "none";
+      if (btnToggleAnnotations) btnToggleAnnotations.style.display = "none";
+      if (btnSyncAnnotations) btnSyncAnnotations.style.display = "none";
       btnSettings.style.display = "none";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
+      document.body.classList.remove("show-annotations");
 
       // Close input form on logout
       if (newEntryRow) newEntryRow.style.display = "none";
@@ -839,6 +1068,9 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsSystemInstruction.value = settings.systemInstruction;
     settingsApiKey.value = settings.apiKey || "";
     settingsModel.value = settings.model || "gemini-3.5-flash";
+    if (settingsPsychModel) {
+      settingsPsychModel.value = settings.psychModel || "gemini-2.5-pro";
+    }
   }
 
   let renderToken = 0;
@@ -880,6 +1112,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const isDirectText = entry.isRawFallback || (typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim() === entry.victorianContent.trim());
       const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
+
+      const annotationPanelHtml = reminisceUnlocked ? `
+        <div class="entry-annotation-panel">
+          ${PsychEngine.renderPanelContent(entry)}
+        </div>
+      ` : "";
 
       row.innerHTML = `
         <div class="timeline-date">
@@ -931,6 +1169,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
         </div>
+        ${annotationPanelHtml}
       `;
       return row;
     }
@@ -1052,6 +1291,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderTimeline();
       UI.showNotification("New reflection recorded.");
+
+      // Organically generate psychologist observation for this newly submitted entry
+      PsychEngine.generateForEntry(newEntryObj);
     } catch (e) {
       console.error("Save entry error:", e);
       UI.showNotification(e.message || "Failed to save entry.");
@@ -2049,6 +2291,9 @@ document.addEventListener("DOMContentLoaded", () => {
     settings.systemInstruction = settingsSystemInstruction.value.trim();
     settings.apiKey = settingsApiKey.value.trim();
     settings.model = settingsModel.value;
+    if (settingsPsychModel) {
+      settings.psychModel = settingsPsychModel.value;
+    }
 
     DB.saveSettings(settings);
     await DB.saveCloudSettings(settings);
@@ -2057,11 +2302,69 @@ document.addEventListener("DOMContentLoaded", () => {
     UI.showNotification("Configurations successfully updated.");
   });
 
-  btnResetSettings.addEventListener("click", async () => {
-    const confirmed = await UI.showConfirm("Reset instructions template to default?");
-    if (confirmed) {
-      updatePersonaSliderUI(2);
-      if (settingsPersonaSlider) settingsPersonaSlider.value = 2;
+  // Discard / Delete specific psychologist note
+  async function deletePsychAnnotation(entryId, noteId) {
+    const privateEntries = DB.getPrivateEntries();
+    const entry = privateEntries.find(e => e.id === entryId);
+    if (!entry || !entry.psychAnnotations) return;
+
+    entry.psychAnnotations = entry.psychAnnotations.filter(n => n.id !== noteId);
+    await DB.saveEntry(entry);
+    PsychEngine.updateCardDOM(entry);
+    UI.showNotification("Psychologist note discarded.");
+  }
+
+  // Toggle Psychologist Annotations View Button (Pure Visibility Toggle - Zero Tokens)
+  if (btnToggleAnnotations) {
+    btnToggleAnnotations.addEventListener("click", () => {
+      const isShown = document.body.classList.toggle("show-annotations");
+      btnToggleAnnotations.classList.toggle("active", isShown);
+      localStorage.setItem("ej_show_annotations", isShown ? "true" : "false");
+      if (isShown) {
+        UI.showNotification("Psychologist case notes displayed.");
+      } else {
+        UI.showNotification("Psychologist case notes hidden.");
+      }
+    });
+  }
+
+  // Explicit Sync Button for Psychologist Observations (Token-Safe Manual Trigger)
+  if (btnSyncAnnotations) {
+    btnSyncAnnotations.addEventListener("click", async () => {
+      if (PsychEngine.isSyncing) return;
+      UI.showNotification("Psychologist reviewing timeline entries...");
+      btnSyncAnnotations.classList.add("active");
+      btnSyncAnnotations.disabled = true;
+
+      // Automatically show annotations column if currently hidden
+      if (!document.body.classList.contains("show-annotations")) {
+        document.body.classList.add("show-annotations");
+        if (btnToggleAnnotations) btnToggleAnnotations.classList.add("active");
+        localStorage.setItem("ej_show_annotations", "true");
+      }
+
+      try {
+        await PsychEngine.autoSync();
+        UI.showNotification("Psychologist observations up to date!");
+      } catch (err) {
+        console.error("Sync error:", err);
+      } finally {
+        btnSyncAnnotations.classList.remove("active");
+        btnSyncAnnotations.disabled = false;
+      }
+    });
+  }
+
+  // Event delegation for discarding individual psychologist notes
+  document.addEventListener("click", (e) => {
+    const deleteBtn = e.target.closest(".btn-delete-note");
+    if (deleteBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const entryId = deleteBtn.dataset.entryId;
+      const noteId = deleteBtn.dataset.noteId;
+      if (entryId && noteId) {
+        deletePsychAnnotation(entryId, noteId);
+      }
     }
   });
 
