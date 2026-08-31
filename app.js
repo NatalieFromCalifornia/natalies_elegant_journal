@@ -420,12 +420,14 @@ const Renderer = {
     // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
     images.forEach(({ dataUrl, widthStyle, isRedacted, rawTag }, idx) => {
       const styleAttr = widthStyle ? `style="${widthStyle}"` : '';
-      const redactBtnText = isRedacted ? "🔓 UNREDACT" : "🔒 REDACT";
+      const lucideUnlockSvg = `<svg class="lucide-unlock-icon" viewBox="0 0 24 24" style="width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: -1px; margin-right: 3px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
+      const lucideSmallLockSvg = `<svg class="lucide-lock-icon-sm" viewBox="0 0 24 24" style="width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: -1px; margin-right: 3px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+      const redactBtnContent = isRedacted ? `${lucideUnlockSvg}UNREDACT` : `${lucideSmallLockSvg}REDACT`;
       const redactClass = isRedacted ? "redacted-img-container" : "";
 
       const controlsHtml = reminisceUnlocked ? `
         <div class="img-resize-bar" title="Image actions & size presets">
-          <button type="button" class="btn-img-redact" data-img-idx="${idx}" data-raw-tag="${encodeURIComponent(rawTag)}" data-is-redacted="${isRedacted}">${redactBtnText}</button>
+          <button type="button" class="btn-img-redact" data-img-idx="${idx}" data-raw-tag="${encodeURIComponent(rawTag)}" data-is-redacted="${isRedacted}">${redactBtnContent}</button>
           <button type="button" class="btn-img-size" data-size="280px">280px</button>
           <button type="button" class="btn-img-size" data-size="450px">450px</button>
           <button type="button" class="btn-img-size" data-size="100%">100%</button>
@@ -882,7 +884,7 @@ CRITICAL GUIDELINES:
 
     return `
       <div class="psych-panel-header">
-        <span class="psych-panel-title">🧠 CASE NOTES</span>
+        <span class="psych-panel-title"><svg class="lucide-brain-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg> CASE NOTES</span>
       </div>
       <div class="psych-notes-list">
         ${notesHtml}
@@ -993,6 +995,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize
   async function init() {
+    // 0. INSTANT LOCAL HYDRATION (0ms - Render cached feed immediately so page never waits on network)
+    reminisceUnlocked = sessionStorage.getItem("ej_reminisce_unlocked") === "true";
+    applyModeUI();
+    renderTimeline();
+
     await DB.initFirebase();
     
     // Auto login session verification
@@ -1000,18 +1007,24 @@ document.addEventListener("DOMContentLoaded", () => {
       window.Firebase.onAuthStateChanged(auth, async (user) => {
         if (user && ownerEmail && user.email === ownerEmail) {
           reminisceUnlocked = true;
+          applyModeUI();
+          renderTimeline(); // Immediate render of private local cache
+          
           await DB.fetchCloudSettings();
           await DB.fetchPrivateCloudEntries();
+          renderTimeline(); // Background sync update with cloud
         } else if (user) {
           // If logged in with wrong email, sign out instantly and notify
           await window.Firebase.signOut(auth);
           reminisceUnlocked = false;
           UI.showNotification("Access denied: Only the journal owner can unlock.");
+          applyModeUI();
+          renderTimeline();
         } else {
           reminisceUnlocked = false;
+          applyModeUI();
+          renderTimeline();
         }
-        applyModeUI();
-        renderTimeline();
       });
     } else {
       // Offline mode fallback using sessionStorage
@@ -1161,7 +1174,10 @@ document.addEventListener("DOMContentLoaded", () => {
               </div>
 
               <div class="edit-actions">
-                <button type="button" class="btn-text btn-card-image-upload" data-id="${entry.id}">🖼️ IMAGE</button>
+                <button type="button" class="btn-text btn-card-image-upload" data-id="${entry.id}" style="display: inline-flex; align-items: center; gap: 4px;">
+                  <svg class="lucide-image-icon" viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                  <span>IMAGE</span>
+                </button>
                 <button class="btn-text btn-card-edit-cancel" data-id="${entry.id}">CANCEL</button>
                 <button class="btn-pill btn-card-edit-done active" data-id="${entry.id}">DONE</button>
               </div>
