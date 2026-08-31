@@ -316,8 +316,18 @@ const DB = {
           const docId = data.id || doc.id;
           data.id = docId;
           const existing = entryMap.get(docId);
+
+          // Safeguard: Never allow an empty cloud document to wipe out non-empty local text
+          if (existing && (existing.rawContent || existing.victorianContent || existing.publicContent)) {
+            if (!data.rawContent && !data.victorianContent && !data.publicContent) {
+              data.rawContent = existing.rawContent;
+              data.victorianContent = existing.victorianContent;
+              data.publicContent = existing.publicContent;
+            }
+          }
+
           if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
-            entryMap.set(docId, data);
+            entryMap.set(docId, this.normalizeEntry(data));
           }
         }
       });
@@ -350,7 +360,7 @@ const DB = {
             if (data && (data.id || doc.id)) {
               const docId = data.id || doc.id;
               data.id = docId;
-              entryMap.set(docId, data);
+              entryMap.set(docId, this.normalizeEntry(data));
             }
           });
           if (onEntryStream) onEntryStream(Array.from(entryMap.values()));
@@ -367,8 +377,18 @@ const DB = {
           const docId = data.id || doc.id;
           data.id = docId;
           const existing = entryMap.get(docId);
+
+          // Safeguard: Never allow an empty cloud document to wipe out non-empty local text
+          if (existing && (existing.rawContent || existing.victorianContent || existing.publicContent)) {
+            if (!data.rawContent && !data.victorianContent && !data.publicContent) {
+              data.rawContent = existing.rawContent;
+              data.victorianContent = existing.victorianContent;
+              data.publicContent = existing.publicContent;
+            }
+          }
+
           if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
-            entryMap.set(docId, data);
+            entryMap.set(docId, this.normalizeEntry(data));
           }
         }
       });
@@ -1301,7 +1321,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const editInitialVal = reminisceUnlocked ? (entry.victorianContent || entry.rawContent || entry.publicContent || "") : "";
 
       const hasContent = typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim().length > 0;
-      const isDirectText = entry.isRawFallback || (hasContent && entry.rawContent.trim() === entry.victorianContent.trim());
+      const isDirectText = Boolean(renderText && renderText.trim().length > 0) && (entry.isRawFallback || (hasContent && entry.rawContent.trim() === entry.victorianContent.trim()));
       const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
 
       const annotationPanelHtml = reminisceUnlocked ? `
@@ -1309,6 +1329,10 @@ document.addEventListener("DOMContentLoaded", () => {
           ${PsychEngine.renderPanelContent(entry)}
         </div>
       ` : "";
+
+      const bodyHtml = (renderText && renderText.trim().length > 0)
+        ? Renderer.render(renderText)
+        : `<span style="color: var(--ink-muted); font-style: italic; font-size: 13px; opacity: 0.6;">(Empty reflection — click ··· to edit or discard)</span>`;
 
       row.innerHTML = `
         <div class="timeline-date">
@@ -1329,7 +1353,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <button class="context-menu-item btn-card-delete" data-id="${entry.id}">Discard</button>
               </div>
             </div>
-            <div class="entry-body card-body-text victorian">${Renderer.render(renderText)}</div>
+            <div class="entry-body card-body-text victorian">${bodyHtml}</div>
             <div class="entry-card-footer" style="display: flex; justify-content: space-between; align-items: center;">
               <span>Edited ${formattedEdited}</span>
               ${directBadgeHtml}
