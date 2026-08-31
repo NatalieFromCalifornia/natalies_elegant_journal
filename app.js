@@ -225,34 +225,50 @@ const DB = {
     }
   },
 
-  async fetchPublicCloudEntries() {
+  async fetchPublicCloudEntries(onEntryStream) {
     if (!db) return null;
     try {
-      const collectionsToScan = ["natalie_journal_public_entries", "public_entries"];
+      const colRef = window.Firebase.collection(db, "natalie_journal_public_entries");
       const localEntries = this.getPublicEntries();
       const entryMap = new Map();
       localEntries.forEach(e => { if (e && e.id) entryMap.set(e.id, e); });
 
-      for (const colName of collectionsToScan) {
-        try {
-          const colRef = window.Firebase.collection(db, colName);
-          const querySnapshot = await window.Firebase.getDocs(colRef);
-          querySnapshot.forEach(doc => {
+      // Step 1: Rapid 1-entry query for the newest reflection (arrives in ~100-150ms)
+      try {
+        if (window.Firebase.query && window.Firebase.orderBy && window.Firebase.limit) {
+          const topQuery = window.Firebase.query(colRef, window.Firebase.orderBy("createdAt", "desc"), window.Firebase.limit(1));
+          const topSnapshot = await window.Firebase.getDocs(topQuery);
+          topSnapshot.forEach(doc => {
             const data = doc.data();
             if (data && (data.id || doc.id)) {
               const docId = data.id || doc.id;
               data.id = docId;
-              const existing = entryMap.get(docId);
-              if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
-                entryMap.set(docId, data);
-              }
+              entryMap.set(docId, data);
             }
           });
-        } catch(e) {}
+          if (onEntryStream) onEntryStream(Array.from(entryMap.values()));
+        }
+      } catch (err) {
+        console.warn("Fast top public entry query fallback:", err);
       }
+
+      // Step 2: Stream remaining entries
+      const querySnapshot = await window.Firebase.getDocs(colRef);
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data && (data.id || doc.id)) {
+          const docId = data.id || doc.id;
+          data.id = docId;
+          const existing = entryMap.get(docId);
+          if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
+            entryMap.set(docId, data);
+          }
+        }
+      });
 
       const mergedEntries = Array.from(entryMap.values());
       this.savePublicEntries(mergedEntries);
+      if (onEntryStream) onEntryStream(mergedEntries);
       return mergedEntries;
     } catch (err) {
       console.error("Public cloud fetch failed, using offline cache:", err);
@@ -260,40 +276,50 @@ const DB = {
     return null;
   },
 
-  async fetchPrivateCloudEntries() {
+  async fetchPrivateCloudEntries(onEntryStream) {
     if (!db || !auth || !auth.currentUser) return null;
     try {
-      const collectionsToScan = [
-        "natalie_journal_private_entries",
-        "natalies_journal_entries",
-        "private_entries",
-        "entries"
-      ];
-      
+      const colRef = window.Firebase.collection(db, "natalie_journal_private_entries");
       const localEntries = this.getPrivateEntries();
       const entryMap = new Map();
       localEntries.forEach(e => { if (e && e.id) entryMap.set(e.id, e); });
 
-      for (const colName of collectionsToScan) {
-        try {
-          const colRef = window.Firebase.collection(db, colName);
-          const querySnapshot = await window.Firebase.getDocs(colRef);
-          querySnapshot.forEach(doc => {
+      // Step 1: Rapid 1-entry query for the newest reflection (arrives in ~100-150ms)
+      try {
+        if (window.Firebase.query && window.Firebase.orderBy && window.Firebase.limit) {
+          const topQuery = window.Firebase.query(colRef, window.Firebase.orderBy("createdAt", "desc"), window.Firebase.limit(1));
+          const topSnapshot = await window.Firebase.getDocs(topQuery);
+          topSnapshot.forEach(doc => {
             const data = doc.data();
             if (data && (data.id || doc.id)) {
               const docId = data.id || doc.id;
               data.id = docId;
-              const existing = entryMap.get(docId);
-              if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
-                entryMap.set(docId, data);
-              }
+              entryMap.set(docId, data);
             }
           });
-        } catch(e) {}
+          if (onEntryStream) onEntryStream(Array.from(entryMap.values()));
+        }
+      } catch (err) {
+        console.warn("Fast top private entry query fallback:", err);
       }
+
+      // Step 2: Stream remaining entries
+      const querySnapshot = await window.Firebase.getDocs(colRef);
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data && (data.id || doc.id)) {
+          const docId = data.id || doc.id;
+          data.id = docId;
+          const existing = entryMap.get(docId);
+          if (!existing || safeParseDate(data.updatedAt || data.date || data.createdAt) >= safeParseDate(existing.updatedAt || existing.date || existing.createdAt)) {
+            entryMap.set(docId, data);
+          }
+        }
+      });
 
       const mergedEntries = Array.from(entryMap.values());
       this.savePrivateEntries(mergedEntries);
+      if (onEntryStream) onEntryStream(mergedEntries);
       return mergedEntries;
     } catch (err) {
       console.error("Private cloud fetch failed, using offline cache:", err);
@@ -1011,8 +1037,10 @@ document.addEventListener("DOMContentLoaded", () => {
           renderTimeline(); // Immediate render of private local cache
           
           await DB.fetchCloudSettings();
-          await DB.fetchPrivateCloudEntries();
-          renderTimeline(); // Background sync update with cloud
+          // Progressive network streaming callback: renders top entry immediately when fetched, then remaining entries
+          await DB.fetchPrivateCloudEntries(() => {
+            renderTimeline();
+          });
         } else if (user) {
           // If logged in with wrong email, sign out instantly and notify
           await window.Firebase.signOut(auth);
@@ -1033,9 +1061,11 @@ document.addEventListener("DOMContentLoaded", () => {
       renderTimeline();
     }
 
-    await DB.fetchPublicCloudEntries();
+    // Public streaming callback
+    await DB.fetchPublicCloudEntries(() => {
+      renderTimeline();
+    });
     loadSettingsIntoForm();
-    renderTimeline();
     setupEventListeners();
   }
 
