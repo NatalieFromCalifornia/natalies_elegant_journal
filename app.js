@@ -252,36 +252,6 @@ const DB = {
     let fullRawContent = resolveImages(chosenRaw);
     let fullVictorianContent = resolveImages(chosenVictorian);
 
-    // Synchronize attached images & custom width tags from raw content to victorian content
-    if (fullRawContent) {
-      const rawImageMatches = fullRawContent.match(/!\[([\s\S]*?)\]\((data:image\/[^)]+|img-[^)]+|https?:\/\/[^)]+)\)/gi);
-      if (rawImageMatches) {
-        rawImageMatches.forEach((imgTag) => {
-          const urlMatch = imgTag.match(/\(([^)]+)\)/);
-          const altMatch = imgTag.match(/!\[([\s\S]*?)\]/);
-          const urlOrId = urlMatch ? urlMatch[1].trim() : "";
-          const rawAltText = altMatch ? altMatch[1].trim() : "attached-image";
-          if (urlOrId) {
-            if (fullVictorianContent.includes(urlOrId)) {
-              // Safely replace alt text in fullVictorianContent using string index search (NO new RegExp!)
-              const targetSub = `(${urlOrId})`;
-              const targetIdx = fullVictorianContent.indexOf(targetSub);
-              if (targetIdx !== -1) {
-                const startIdx = fullVictorianContent.lastIndexOf("![", targetIdx);
-                if (startIdx !== -1) {
-                  const before = fullVictorianContent.slice(0, startIdx);
-                  const after = fullVictorianContent.slice(targetIdx + targetSub.length);
-                  fullVictorianContent = `${before}![${rawAltText}]${targetSub}${after}`;
-                }
-              }
-            } else {
-              fullVictorianContent = (fullVictorianContent ? fullVictorianContent.trim() + "\n\n" : "") + imgTag;
-            }
-          }
-        });
-      }
-    }
-
     const publicContent = maskSecrets(fullVictorianContent);
     const now = new Date().toISOString();
     const updatedAt = (preserveUpdatedAt && entry.updatedAt) ? entry.updatedAt : now;
@@ -1472,7 +1442,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const editInitialVal = reminisceUnlocked ? (entry.victorianContent || entry.rawContent || entry.publicContent || "") : "";
 
       const hasContent = typeof entry.rawContent === "string" && typeof entry.victorianContent === "string" && entry.rawContent.trim().length > 0;
-      const isDirectText = Boolean(renderText && renderText.trim().length > 0) && (entry.isRawFallback || (hasContent && entry.rawContent.trim() === entry.victorianContent.trim()));
+      const isDirectText = Boolean(renderText && renderText.trim().length > 0) && entry.isRawFallback === true;
       const directBadgeHtml = (reminisceUnlocked && isDirectText) ? `<span class="raw-text-badge" title="Direct raw reflection (untranscribed)">✦ DIRECT TEXT</span>` : "";
 
       const annotationPanelHtml = reminisceUnlocked ? `
@@ -1864,6 +1834,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const doneBtn = e.target.closest(".btn-card-edit-done");
     const moreBtn = e.target.closest(".btn-more");
     const toggleEditBtn = e.target.closest(".btn-toggle-edit");
+    const imageUploadBtn = e.target.closest(".btn-card-image-upload");
+
+    if (imageUploadBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const textarea = editState.querySelector(".card-edit-textarea");
+      activeEditingTextarea = textarea;
+      if (globalImageInput) {
+        globalImageInput.value = "";
+        globalImageInput.click();
+      }
+      return;
+    }
 
     if (deleteBtn && reminisceUnlocked) {
       e.stopPropagation();
@@ -1977,7 +1959,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } else {
         // Save manual rewrite override
-        const rawContent = editState.dataset.tempRaw || entry.rawContent;
+        const rawContent = updatedValue;
+        entry.isRawFallback = false;
         await DB.saveEntry(entry, rawContent, updatedValue);
         
         editState.style.display = "none";
@@ -1987,6 +1970,7 @@ document.addEventListener("DOMContentLoaded", () => {
         node.className = "timeline-node";
         
         renderTimeline();
+        UI.showNotification("Reflection updated.");
       }
     }
   });
