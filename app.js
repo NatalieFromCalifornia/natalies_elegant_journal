@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = {
   apiKey: "",
   model: "gemini-2.5-flash",
   psychModel: "gemini-3.1-pro-preview",
+  annotationRetryDelay: 20,
   systemInstruction: DEFAULT_SYSTEM_INSTRUCTION
 };
 
@@ -1029,39 +1030,66 @@ CRITICAL GUIDELINES:
       ]
     };
 
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+    const maxTries = 3; // 1 initial attempt + 2 retries
+    const retryDelaySec = Math.max(5, parseInt(settings.annotationRetryDelay || 20, 10));
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const errMsg = errData.error?.message || response.statusText || `HTTP ${response.status}`;
-        console.error(`PsychEngine API Error (${currentModel}):`, errMsg);
+    for (let attempt = 1; attempt <= maxTries; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
 
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.error?.message || response.statusText || `HTTP ${response.status}`;
+          console.error(`PsychEngine API Error (${currentModel}) [Attempt ${attempt}/${maxTries}]:`, errMsg);
+
+          const isRateLimitOrDemand = response.status === 429 || response.status === 503 || /rate limit|quota|exhausted|high demand|overloaded|capacity|resource/i.test(errMsg);
+
+          if (isRateLimitOrDemand && attempt < maxTries) {
+            console.warn(`Rate limit / High demand hit on attempt ${attempt}. Waiting ${retryDelaySec}s before attempt ${attempt + 1}...`);
+            
+            // Interactive 1-second countdown ticker inside the card pulse
+            for (let s = retryDelaySec; s > 0; s--) {
+              this.updateCardLoading(targetEntry.id, true, `High demand. Retrying in ${s}s (Attempt ${attempt}/${maxTries - 1})...`);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            this.updateCardLoading(targetEntry.id, true, `Annotating reflection...`);
+            continue;
+          }
+
+          if (typeof UI !== "undefined" && UI.showAlert) {
+            UI.showAlert(`Could not generate notes with model "${currentModel}".\n\nReason: ${errMsg}\n\nPlease check your model selection or API key in MENU.`, "GENERATION FAILED");
+          }
+          return null;
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          if (typeof UI !== "undefined" && UI.showAlert) {
+            UI.showAlert(`Model "${currentModel}" returned an empty response or was filtered by safety settings.`, "GENERATION NOTICE");
+          }
+          return null;
+        }
+        return text.trim();
+      } catch (e) {
+        console.error(`PsychEngine network error with ${currentModel} [Attempt ${attempt}/${maxTries}]:`, e);
+        if (attempt < maxTries) {
+          for (let s = retryDelaySec; s > 0; s--) {
+            this.updateCardLoading(targetEntry.id, true, `Connection glitch. Retrying in ${s}s (Attempt ${attempt}/${maxTries - 1})...`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+          this.updateCardLoading(targetEntry.id, true, `Annotating reflection...`);
+          continue;
+        }
         if (typeof UI !== "undefined" && UI.showAlert) {
-          UI.showAlert(`Could not generate notes with model "${currentModel}".\n\nReason: ${errMsg}\n\nPlease check your model selection or API key in MENU.`, "GENERATION FAILED");
+          UI.showAlert(`Network failure connecting to Gemini model "${currentModel}".\n\n${e.message}`, "CONNECTION ERROR");
         }
         return null;
       }
-
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) {
-        if (typeof UI !== "undefined" && UI.showAlert) {
-          UI.showAlert(`Model "${currentModel}" returned an empty response or was filtered by safety settings.`, "GENERATION NOTICE");
-        }
-        return null;
-      }
-      return text.trim();
-    } catch (e) {
-      console.error(`PsychEngine network error with ${currentModel}:`, e);
-      if (typeof UI !== "undefined" && UI.showAlert) {
-        UI.showAlert(`Network failure connecting to Gemini model "${currentModel}".\n\n${e.message}`, "CONNECTION ERROR");
-      }
-      return null;
     }
   },
 
@@ -1155,18 +1183,22 @@ CRITICAL GUIDELINES:
     }
   },
 
-  updateCardLoading(entryId, isLoading) {
+  updateCardLoading(entryId, isLoading, customMessage = null) {
     const row = document.querySelector(`.timeline-row[data-id="${entryId}"]`);
     if (!row) return;
     const panel = row.querySelector(".entry-annotation-panel");
     if (!panel) return;
     let pulse = panel.querySelector(".psych-loading-pulse");
+    const msg = customMessage || "Annotating reflection...";
     if (isLoading) {
       if (!pulse) {
         pulse = document.createElement("div");
         pulse.className = "psych-loading-pulse";
-        pulse.innerHTML = `<span class="pulse-star">✦</span><span>Annotating reflection...</span>`;
+        pulse.innerHTML = `<span class="pulse-star">✦</span><span class="pulse-msg">${msg}</span>`;
         panel.appendChild(pulse);
+      } else {
+        const msgSpan = pulse.querySelector(".pulse-msg") || pulse.querySelector("span:not(.pulse-star)");
+        if (msgSpan) msgSpan.textContent = msg;
       }
     } else {
       if (pulse) pulse.remove();
@@ -1266,6 +1298,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const settingsModel = document.getElementById("settings-model");
   const settingsPsychModel = document.getElementById("settings-psych-model");
   const settingsSystemInstruction = document.getElementById("settings-system-instruction");
+  const settingsRetryDelay = document.getElementById("settings-retry-delay");
   const btnResetSettings = document.getElementById("btn-reset-settings");
   const btnSignOut = document.getElementById("btn-sign-out");
   const btnExportBackup = document.getElementById("btn-export-backup");
@@ -2469,6 +2502,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (settingsPsychModel) {
       settingsPsychModel.value = settings.psychModel || "gemini-3.1-pro-preview";
     }
+    if (settingsRetryDelay) {
+      settingsRetryDelay.value = settings.annotationRetryDelay || 20;
+    }
     
     let matchedStep = 2;
     for (let s = 1; s <= 5; s++) {
@@ -2602,6 +2638,9 @@ document.addEventListener("DOMContentLoaded", () => {
     settings.model = settingsModel.value;
     if (settingsPsychModel) {
       settings.psychModel = settingsPsychModel.value;
+    }
+    if (settingsRetryDelay) {
+      settings.annotationRetryDelay = Math.max(5, parseInt(settingsRetryDelay.value || 20, 10));
     }
 
     DB.saveSettings(settings);

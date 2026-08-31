@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=8.9">
+  <link rel="stylesheet" href="style.css?v=9.0">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -222,6 +222,12 @@
               </div>
 
               <div class="form-group">
+                <label for="settings-retry-delay">HIGH DEMAND RETRY WAIT (SECONDS)</label>
+                <input type="number" id="settings-retry-delay" min="5" max="120" step="1" value="20" style="width: 100%; padding: 8px 10px; font-family: var(--font-mono); font-size: 13px; border: 1px solid var(--border-color); background: var(--bg-paper); color: var(--ink-color);">
+                <span class="help-text">Seconds to wait between retry attempts (up to 2 automatic retries) when encountering rate limits or high AI demand.</span>
+              </div>
+
+              <div class="form-group">
                 <label for="settings-persona-slider">PERSONA INTENSITY DIAL</label>
                 <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
                   <input type="range" id="settings-persona-slider" min="1" max="5" step="1" value="2" style="flex: 1; cursor: pointer; accent-color: var(--accent-color);">
@@ -284,6 +290,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=8.9"></script>
+  <script src="app.js?v=9.0"></script>
 </body>
 </html>
