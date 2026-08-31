@@ -1088,7 +1088,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeSelection = null;
   let activeUnredactTarget = null;
   let isTranscribing = false;
-  };
 
   // Initialize
   async function init() {
