@@ -562,7 +562,7 @@ const Renderer = {
     let cleanText = text.replace(/\|\|!\[([\s\S]*?)\]\(\s*(data:image\/[^\s)]+|img-[^\s)]+|https?:\/\/[^\s)]+)\s*\)\|\|/gi, (match, altText, dataUrl) => {
       if (!reminisceUnlocked) {
         publicRedactedBoxes.push(true);
-        return `@@@JOURNAL_PUBLIC_REDACTED_${publicRedactedBoxes.length - 1}@@@`;
+        return `%%JOURNALPUBLICREDACTEDX${publicRedactedBoxes.length - 1}%%`;
       }
       const actualUrl = (dataUrl.startsWith("img-") && tempImageStore[dataUrl]) ? tempImageStore[dataUrl] : dataUrl;
       if (actualUrl && !actualUrl.startsWith("img-")) {
@@ -573,7 +573,7 @@ const Renderer = {
         }
         const rawTag = `![${altText}](${dataUrl})`;
         images.push({ dataUrl: actualUrl, widthStyle, isRedacted: true, rawTag });
-        return `@@@JOURNAL_IMG_TOKEN_${images.length - 1}@@@`;
+        return `%%JOURNALIMGTOKENX${images.length - 1}%%`;
       }
       return "";
     });
@@ -588,7 +588,7 @@ const Renderer = {
           widthStyle = `width: ${wMatch[1]};`;
         }
         images.push({ dataUrl: actualUrl, widthStyle, isRedacted: false, rawTag: match });
-        return `@@@JOURNAL_IMG_TOKEN_${images.length - 1}@@@`;
+        return `%%JOURNALIMGTOKENX${images.length - 1}%%`;
       }
       return "";
     });
@@ -596,22 +596,22 @@ const Renderer = {
     // Pass 3: Raw unparsed data:image Base64 URLs
     cleanText = cleanText.replace(/(data:image\/[a-zA-Z0-9\/+;=,-]+)/gi, (match, dataUrl) => {
       images.push({ dataUrl, widthStyle: "", isRedacted: false, rawTag: match });
-      return `@@@JOURNAL_IMG_TOKEN_${images.length - 1}@@@`;
+      return `%%JOURNALIMGTOKENX${images.length - 1}%%`;
     });
 
     // Replace ||[REDACTED_IMAGE]|| tags and legacy 30+ █ block characters in public mode with placeholders
     cleanText = cleanText.replace(/\|\|\[REDACTED_IMAGE\]\|\|/gi, () => {
       publicRedactedBoxes.push(true);
-      return `@@@JOURNAL_PUBLIC_REDACTED_${publicRedactedBoxes.length - 1}@@@`;
+      return `%%JOURNALPUBLICREDACTEDX${publicRedactedBoxes.length - 1}%%`;
     });
     cleanText = cleanText.replace(/(?:\|\|)?█{30,}(?:\|\|)?/g, () => {
       publicRedactedBoxes.push(true);
-      return `@@@JOURNAL_PUBLIC_REDACTED_${publicRedactedBoxes.length - 1}@@@`;
+      return `%%JOURNALPUBLICREDACTEDX${publicRedactedBoxes.length - 1}%%`;
     });
 
     // Clean up empty lines & excessive newlines surrounding image placeholders before \n -> <br>
-    cleanText = cleanText.replace(/\n*@@@JOURNAL_IMG_TOKEN_(\d+)@@@\n*/g, '\n@@@JOURNAL_IMG_TOKEN_$1@@@\n');
-    cleanText = cleanText.replace(/\n*@@@JOURNAL_PUBLIC_REDACTED_(\d+)@@@\n*/g, '\n@@@JOURNAL_PUBLIC_REDACTED_$1@@@\n');
+    cleanText = cleanText.replace(/\n*%%JOURNALIMGTOKENX(\d+)%%\n*/g, '\n%%JOURNALIMGTOKENX$1%%\n');
+    cleanText = cleanText.replace(/\n*%%JOURNALPUBLICREDACTEDX(\d+)%%\n*/g, '\n%%JOURNALPUBLICREDACTEDX$1%%\n');
 
     let escaped = this.escapeHtml(cleanText);
 
@@ -621,17 +621,16 @@ const Renderer = {
       return `<span class="redacted-text" data-secret="${attrSecret}" title="Click to unredact secret">${secret}</span>`;
     });
 
-    // 2. Bold + Italic: ***text*** or ___text___
+    // 2. Bold + Italic: ***text***
     escaped = escaped.replace(/\*\*\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*\*\*/g, '<strong><em>$1</em></strong>');
-    escaped = escaped.replace(/___([^\s_][\s\S]*?[^\s_]|[^\s_])___/g, '<strong><em>$1</em></strong>');
 
     // 3. Bold: **text** or __text__
     escaped = escaped.replace(/\*\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*\*/g, '<strong>$1</strong>');
-    escaped = escaped.replace(/__([^\s_][\s\S]*?[^\s_]|[^\s_])__/g, '<strong>$1</strong>');
+    escaped = escaped.replace(/(^|[^_])__([^\s_][\s\S]*?[^\s_]|[^\s_])__(?!_)/g, '$1<strong>$2</strong>');
 
     // 4. Italic: *text* or _text_
     escaped = escaped.replace(/(^|[^\*])\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*(?!\*)/g, '$1<em>$2</em>');
-    escaped = escaped.replace(/(^|[^_])_([^\s_][\s\S]*?[^\s_]|[^\s_])_(?!_)/g, '$1<em>$2</em>');
+    escaped = escaped.replace(/\b_([^\s_][\s\S]*?[^\s_]|[^\s_])_\b/g, '<em>$1</em>');
 
     // 5. Strikethrough: ~~text~~
     escaped = escaped.replace(/~~([^\s~][\s\S]*?[^\s~]|[^\s~])~~/g, '<del>$1</del>');
@@ -645,7 +644,7 @@ const Renderer = {
     // Restore public redacted image boxes AFTER escapeHtml
     publicRedactedBoxes.forEach((_, idx) => {
       const publicBoxHtml = `<div class="public-redacted-box" title="Redacted Image Attachment">${lucideLockSvg}</div>`;
-      escaped = escaped.replace(`@@@JOURNAL_PUBLIC_REDACTED_${idx}@@@`, publicBoxHtml);
+      escaped = escaped.replace(`%%JOURNALPUBLICREDACTEDX${idx}%%`, publicBoxHtml);
     });
 
     // Restore images wrapped in interactive resizable container (controls shown only when unlocked)
@@ -683,7 +682,7 @@ const Renderer = {
           ${controlsHtml}
         </div>
       `;
-      escaped = escaped.replace(`@@@JOURNAL_IMG_TOKEN_${idx}@@@`, imgTag);
+      escaped = escaped.replace(`%%JOURNALIMGTOKENX${idx}%%`, imgTag);
     });
 
     // Cleanly strip excessive <br> tags immediately preceding or following block image containers & public redacted boxes
