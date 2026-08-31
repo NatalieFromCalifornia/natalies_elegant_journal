@@ -872,27 +872,43 @@ const PsychEngine = {
 
     const PSYCH_SYSTEM_PROMPT = `You are an esteemed documentary psychologist and psychoanalyst providing clinical commentary and case notes on the private journal entries of Natalie.
 You are observing Natalie over time as a subject of interest in an engrossing longitudinal study.
-Your role is that of a documentary commentator (like Oliver Sacks or a BBC documentary expert) analyzing her internal conflicts, emotional subtext, coping mechanisms, social boundaries, personal ambitions, and behavioral evolution.
+Your role is that of a documentary commentator (like Oliver Sacks or a BBC documentary expert) analyzing her internal conflicts, emotional subtext, coping mechanisms, social boundaries, personal ambitions, and behavioral evolution across time.
 
 CRITICAL GUIDELINES:
 1. Refer to her naturally as Natalie (or using pronouns she/her). Never use weird clinical aliases like "Subject N", "Subject 01", or "The Diarist".
 2. Speak in the third person as an expert analyst ("Natalie demonstrates a fascinating tension...", "Her instinct here reveals...").
 3. NEVER give direct advice or therapy ("Natalie should...", "I suggest she talk to..."). Instead, analyze what is happening psychologically.
-4. Strictly AVOID mentioning, critiquing, or referencing any Victorian prose style or tonal writing. Focus entirely on her real thoughts, feelings, relationships, and human experiences.
-5. Write concise, profound, captivating commentary (2 to 4 sentences).`;
+4. Build upon prior case notes and emotional patterns established in earlier entries, observing how her thoughts, defenses, and relationships evolve chronologically across time.
+5. Strictly AVOID mentioning, critiquing, or referencing any Victorian prose style or tonal writing. Focus entirely on her real thoughts, feelings, relationships, and human experiences.
+6. Write concise, profound, captivating commentary (2 to 4 sentences).`;
 
-    // Compile chronological timeline summary as longitudinal context
+    // Compile chronological timeline summary with prior reflections AND prior case notes as longitudinal context
     const sortedEntries = [...allEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
-    const timelineContext = sortedEntries.map((e, idx) => {
+    const targetTime = new Date(targetEntry.date || targetEntry.createdAt || 0).getTime();
+
+    // Include prior entries in chronological sequence
+    const priorEntries = sortedEntries.filter(e => {
+      const eTime = new Date(e.date || e.createdAt || 0).getTime();
+      return e.id !== targetEntry.id && eTime <= targetTime;
+    });
+
+    const timelineContext = priorEntries.map((e, idx) => {
       const d = Renderer.formatFullDateTime(e.date || e.createdAt);
-      const textSample = (e.rawContent || e.victorianContent || "").replace(/!\[.*?\]\(.*?\)/g, "[Image]").substring(0, 300);
-      return `[Entry ${idx + 1} - ${d}]: "${textSample}"`;
-    }).join("\n\n");
+      const textSample = (e.rawContent || e.victorianContent || e.publicContent || "").replace(/!\[.*?\]\(.*?\)/g, "[Image]").substring(0, 400);
+      
+      let notesSection = "";
+      if (e.psychAnnotations && e.psychAnnotations.length > 0) {
+        const notesStr = e.psychAnnotations.map(n => `  - Case Note: "${n.note}"`).join("\n");
+        notesSection = `\nPrior Analyst Notes:\n${notesStr}`;
+      }
+      
+      return `[Entry ${idx + 1} - ${d}]:\nReflection: "${textSample}"${notesSection}`;
+    }).join("\n\n---\n\n");
 
     const targetDateStr = Renderer.formatFullDateTime(targetEntry.date || targetEntry.createdAt);
     const targetContent = targetEntry.rawContent || targetEntry.victorianContent || "";
 
-    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE:\n${timelineContext}\n\nTARGET ENTRY BEING ANALYZED:\nDate: ${targetDateStr}\nReflection: "${targetContent}"\n\nProvide your clinical case note / psychological observation on this entry in light of Natalie's ongoing reflections. Output your commentary directly.`;
+    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE (Chronological order of prior reflections and past clinical case notes):\n${timelineContext ? timelineContext : "(This is Natalie's earliest recorded entry in the study.)"}\n\nTARGET ENTRY CURRENTLY BEING ANALYZED:\nDate: ${targetDateStr}\nReflection: "${targetContent}"\n\nProvide your clinical case note / psychological commentary on this target entry. Build insightfully upon any prior observations and patterns noted in her ongoing longitudinal reflections. Output your commentary directly.`;
 
     const payload = {
       contents: [{ parts: [{ text: userPrompt }] }],
@@ -957,12 +973,17 @@ CRITICAL GUIDELINES:
       // Find entries that have no annotations yet
       const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
 
+      // STRICT: Process from OLDEST to NEWEST so longitudinal context builds sequentially
+      missing.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+
       for (const entry of missing) {
         if (!reminisceUnlocked) break;
         this.activeJobs.add(entry.id);
         this.updateCardLoading(entry.id, true);
 
-        const noteText = await this.generateNote(entry, privateEntries);
+        // Fetch fresh private entries array on each iteration so previously generated notes are included in context
+        const currentPrivateEntries = DB.getPrivateEntries();
+        const noteText = await this.generateNote(entry, currentPrivateEntries);
         this.activeJobs.delete(entry.id);
 
         if (noteText) {
