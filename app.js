@@ -1901,76 +1901,89 @@ document.addEventListener("DOMContentLoaded", () => {
       e.stopPropagation();
       if (isTranscribing) return;
 
-      const textarea = editState.querySelector(".card-edit-textarea");
-      const updatedValue = textarea.value.trim();
-      const activeMode = editState.dataset.mode;
+      try {
+        const textarea = editState.querySelector(".card-edit-textarea");
+        const updatedValue = textarea ? textarea.value.trim() : "";
+        const activeMode = editState.dataset.mode || "rewrite";
 
-      if (!updatedValue) {
-        UI.showNotification("The reflection cannot be empty.");
-        return;
-      }
-
-      const entry = DB.getPrivateEntries().find(e => e.id === id);
-
-      if (activeMode === "raw") {
-        // Compare raw text ignoring image tags, whitespace, and punctuation (e.g. adding a period) to check if actual words changed
-        const cleanOriginal = (entry.rawContent || "").replace(/!\[.*?\]\([^)]+\)/g, "");
-        const cleanUpdated = updatedValue.replace(/!\[.*?\]\([^)]+\)/g, "");
-
-        const wordsOriginal = cleanOriginal.toLowerCase().replace(/[^\w]/g, "");
-        const wordsUpdated = cleanUpdated.toLowerCase().replace(/[^\w]/g, "");
-        const wordsUnchanged = (wordsOriginal === wordsUpdated);
-
-        if (wordsUnchanged) {
-          // Punctuation, whitespace, or formatting edit: skip Gemini API call and save formatting directly
-          await DB.saveEntry(entry, updatedValue, entry.victorianContent);
-          renderTimeline();
-          UI.showNotification("Reflection updated.");
+        if (!updatedValue) {
+          UI.showNotification("The reflection cannot be empty.");
           return;
         }
 
-        const currentCancelBtn = editState.querySelector(".btn-card-edit-cancel");
-        const currentDoneBtn = editState.querySelector(".btn-card-edit-done");
-
-        isTranscribing = true;
-        if (currentDoneBtn) currentDoneBtn.disabled = true;
-        if (currentCancelBtn) currentCancelBtn.disabled = true;
-        if (loadingState) loadingState.style.display = "flex";
-
-        let rewritten = updatedValue;
-        try {
-          rewritten = await AIEngine.rewrite(updatedValue);
-        } catch(err) {
-          console.warn("Edit rewrite fallback to direct text:", err);
+        const allPrivate = DB.getPrivateEntries();
+        let entry = allPrivate.find(e => e && String(e.id) === String(id));
+        if (!entry) {
+          const allPublic = DB.getPublicEntries();
+          entry = allPublic.find(e => e && String(e.id) === String(id));
+        }
+        if (!entry) {
+          entry = { id: id, date: new Date().toISOString() };
         }
 
-        try {
-          await DB.saveEntry(entry, updatedValue, rewritten);
+        if (activeMode === "raw") {
+          // Compare raw text ignoring image tags, whitespace, and punctuation (e.g. adding a period) to check if actual words changed
+          const cleanOriginal = (entry.rawContent || "").replace(/!\[.*?\]\([^)]+\)/g, "");
+          const cleanUpdated = updatedValue.replace(/!\[.*?\]\([^)]+\)/g, "");
+
+          const wordsOriginal = cleanOriginal.toLowerCase().replace(/[^\w]/g, "");
+          const wordsUpdated = cleanUpdated.toLowerCase().replace(/[^\w]/g, "");
+          const wordsUnchanged = (wordsOriginal === wordsUpdated);
+
+          if (wordsUnchanged) {
+            // Punctuation, whitespace, or formatting edit: skip Gemini API call and save formatting directly
+            await DB.saveEntry(entry, updatedValue, entry.victorianContent);
+            renderTimeline();
+            UI.showNotification("Reflection updated.");
+            return;
+          }
+
+          const currentCancelBtn = editState.querySelector(".btn-card-edit-cancel");
+          const currentDoneBtn = editState.querySelector(".btn-card-edit-done");
+
+          isTranscribing = true;
+          if (currentDoneBtn) currentDoneBtn.disabled = true;
+          if (currentCancelBtn) currentCancelBtn.disabled = true;
+          if (loadingState) loadingState.style.display = "flex";
+
+          let rewritten = updatedValue;
+          try {
+            rewritten = await AIEngine.rewrite(updatedValue);
+          } catch(err) {
+            console.warn("Edit rewrite fallback to direct text:", err);
+          }
+
+          try {
+            await DB.saveEntry(entry, updatedValue, rewritten);
+            renderTimeline();
+            UI.showNotification("Reflection updated.");
+          } catch(err) {
+            console.error("Edit save error:", err);
+            UI.showNotification(err.message || "Rewrite failed.");
+          } finally {
+            isTranscribing = false;
+            if (currentDoneBtn) currentDoneBtn.disabled = false;
+            if (currentCancelBtn) currentCancelBtn.disabled = false;
+            if (loadingState) loadingState.style.display = "none";
+          }
+        } else {
+          // Save manual rewrite override
+          const rawContent = updatedValue;
+          entry.isRawFallback = false;
+          await DB.saveEntry(entry, rawContent, updatedValue);
+          
+          editState.style.display = "none";
+          viewState.style.display = "block";
+          
+          const node = row.querySelector(".timeline-node-container div");
+          if (node) node.className = "timeline-node";
+          
           renderTimeline();
           UI.showNotification("Reflection updated.");
-        } catch(err) {
-          console.error("Edit save error:", err);
-          UI.showNotification(err.message || "Rewrite failed.");
-        } finally {
-          isTranscribing = false;
-          if (currentDoneBtn) currentDoneBtn.disabled = false;
-          if (currentCancelBtn) currentCancelBtn.disabled = false;
-          if (loadingState) loadingState.style.display = "none";
         }
-      } else {
-        // Save manual rewrite override
-        const rawContent = updatedValue;
-        entry.isRawFallback = false;
-        await DB.saveEntry(entry, rawContent, updatedValue);
-        
-        editState.style.display = "none";
-        viewState.style.display = "block";
-        
-        const node = row.querySelector(".timeline-node-container div");
-        node.className = "timeline-node";
-        
-        renderTimeline();
-        UI.showNotification("Reflection updated.");
+      } catch (err) {
+        console.error("Error saving card edit:", err);
+        UI.showAlert("Error saving edit: " + (err.message || err), "EDIT FAILED");
       }
     }
   });
@@ -1983,17 +1996,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const textarea = editState.querySelector(".card-edit-textarea");
     
     const node = row.querySelector(".timeline-node-container div");
-    node.className = "dashed-node";
+    if (node) node.className = "dashed-node";
 
     window.getSelection().removeAllRanges();
     hideFloatingRedact();
 
-    const entry = DB.getPrivateEntries().find(e => e.id === row.dataset.id);
+    const allPrivate = DB.getPrivateEntries();
+    const entry = allPrivate.find(e => e && String(e.id) === String(row.dataset.id));
 
     editState.dataset.mode = "rewrite";
     editState.querySelectorAll(".btn-toggle-edit").forEach(btn => btn.classList.remove("active"));
-    editState.querySelector('.btn-toggle-edit[data-mode="rewrite"]').classList.add("active");
-    editState.querySelector(".edit-label").textContent = "JOURNAL REWRITE";
+    const rewriteBtn = editState.querySelector('.btn-toggle-edit[data-mode="rewrite"]');
+    if (rewriteBtn) rewriteBtn.classList.add("active");
+    const label = editState.querySelector(".edit-label");
+    if (label) label.textContent = "JOURNAL REWRITE";
 
     let initialText = entry ? (entry.victorianContent || entry.rawContent || "") : "";
     initialText = initialText.replace(/!\[.*?\]\((data:image\/[^)]+)\)/g, (match, dataUrl) => {
