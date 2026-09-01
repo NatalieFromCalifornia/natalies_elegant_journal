@@ -1007,16 +1007,17 @@ const PsychEngine = {
 You are studying Natalie's behavioral patterns, emotional dynamics, defense mechanisms, relational boundaries, and psychological shifts across time in an authentic longitudinal study.
 
 CORE ANALYTICAL DIRECTIVES:
-1. STRICTLY NO SYCOPHANCY, CHEERLEADING, OR FORCED AFFIRMATION: Do not flatter, validate, comfort, or attempt to "empower" her. Avoid therapeutic patronizing or praise ("It is admirable that...", "She courageously...", "This powerful step shows her resilience..."). Provide cold, sharp, honest, neutral psychological observation.
-2. OBJECTIVE & UNBIASED: Observe her psychological realities candidly—her defenses, avoidance strategies, cognitive distortions, ambivalence, social anxieties, somatic expressions, genuine joys, or self-criticisms—with unvarnished intellectual curiosity and clinical detachment.
-3. REFER TO HER NATURALLY: Refer to her as Natalie (or she/her). Never use sterile clinical aliases like "the diarist" or "Subject N". Speak in the third person.
-4. NO DIRECT ADVICE OR THERAPY: Do not tell her what to do, how to fix things, or suggest coping exercises. Analyze what is actually happening beneath the surface.
-5. VARY FORMAT & LENGTH NATURALLY: Do not follow a robotic or cookie-cutter template. Tailor the commentary to the entry:
+1. NEVER OPEN WITH OR RESTATE THE TIME OR DATE OF ENTRY: Absolutely DO NOT begin notes by referencing the hour, time of day, clock time, or calendar date (e.g. NEVER start with "At 9:11 AM...", "In this early morning reflection...", "Written on August 23rd...", "In this entry from 04:35 AM...", "Late at night..."). The time of entry is almost never relevant and creates rigid, repetitive openings. Dive straight into the psychological dynamics immediately.
+2. STRICTLY NO SYCOPHANCY, CHEERLEADING, OR FORCED AFFIRMATION: Do not flatter, validate, comfort, or attempt to "empower" her. Avoid therapeutic patronizing or praise ("It is admirable that...", "She courageously...", "This powerful step shows her resilience..."). Provide cold, sharp, honest, neutral psychological observation.
+3. OBJECTIVE & UNBIASED: Observe her psychological realities candidly—her defenses, avoidance strategies, cognitive distortions, ambivalence, social anxieties, somatic expressions, genuine joys, or self-criticisms—with unvarnished intellectual curiosity and clinical detachment.
+4. REFER TO HER NATURALLY: Refer to her as Natalie (or she/her). Never use sterile clinical aliases like "the diarist" or "Subject N". Speak in the third person.
+5. NO DIRECT ADVICE OR THERAPY: Do not tell her what to do, how to fix things, or suggest coping exercises. Analyze what is actually happening beneath the surface.
+6. VARY FORMAT, HOOKS & LENGTH NATURALLY: Do not follow a robotic or cookie-cutter template. Tailor the commentary to the entry:
+   - Vary your opening sentences and analytical angles dynamically (e.g., examining relational boundaries, defense mechanisms, somatic displacement, identity negotiation, attachment dynamics).
    - For some reflections, a single incisive, penetrating observation is most fitting.
    - For complex entries, write a multi-sentence diagnostic breakdown highlighting specific psychological tensions or contradictions.
-   - Vary your analytical lens (e.g., examining relational boundaries, defense mechanisms, somatic displacement, identity negotiation, attachment dynamics).
-6. LONGITUDINAL CONTINUITY: Connect your observations to patterns noted in prior entries and prior case notes when relevant, watching how her psychological landscape shifts over weeks and months.
-7. IGNORE STYLISTIC FLOURISHES: Strictly avoid commenting on prose style, Victorian phrasing, or grammar. Focus 100% on her authentic thoughts, emotions, actions, and real human experiences.`;
+7. LONGITUDINAL CONTINUITY: Connect your observations to patterns noted in prior entries and prior case notes when relevant, watching how her psychological landscape shifts over weeks and months.
+8. IGNORE STYLISTIC FLOURISHES: Strictly avoid commenting on prose style, Victorian phrasing, or grammar. Focus 100% on her authentic thoughts, emotions, actions, and real human experiences.`;
 
     // Compile chronological timeline summary with prior reflections AND prior case notes as longitudinal context
     const sortedEntries = [...allEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
@@ -1025,7 +1026,7 @@ CORE ANALYTICAL DIRECTIVES:
     // Include prior entries in chronological sequence
     const priorEntries = sortedEntries.filter(e => {
       const eTime = new Date(e.date || e.createdAt || 0).getTime();
-      return e.id !== targetEntry.id && eTime <= targetTime;
+      return canonicalId(e.id) !== canonicalId(targetEntry.id) && eTime <= targetTime;
     });
 
     const timelineContext = priorEntries.map((e, idx) => {
@@ -1041,10 +1042,9 @@ CORE ANALYTICAL DIRECTIVES:
       return `[Entry ${idx + 1} - ${d}]:\nReflection: "${textSample}"${notesSection}`;
     }).join("\n\n---\n\n");
 
-    const targetDateStr = Renderer.formatFullDateTime(targetEntry.date || targetEntry.createdAt);
     const targetContent = targetEntry.rawContent || targetEntry.victorianContent || "";
 
-    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE (Chronological order of prior reflections and past clinical case notes):\n${timelineContext ? timelineContext : "(This is Natalie's earliest recorded entry in the study.)"}\n\nTARGET ENTRY CURRENTLY BEING ANALYZED:\nDate: ${targetDateStr}\nReflection: "${targetContent}"\n\nProvide your clinical case note / psychological commentary on this target entry. Build insightfully upon any prior observations and patterns noted in her ongoing longitudinal reflections. Output your commentary directly.`;
+    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE (Chronological order of prior reflections and past clinical case notes):\n${timelineContext ? timelineContext : "(This is Natalie's earliest recorded entry in the study.)"}\n\nTARGET ENTRY CURRENTLY BEING ANALYZED:\nReflection: "${targetContent}"\n\nProvide your clinical case note / psychological commentary on this target entry. Build insightfully upon any prior observations and patterns noted in her ongoing longitudinal reflections. Dive directly into your observation without mentioning timestamps or introductory formulas.`;
 
     const payload = {
       contents: [{ parts: [{ text: userPrompt }] }],

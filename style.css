@@ -668,6 +668,36 @@ body.show-annotations .entry-annotation-panel {
   color: var(--ink-muted);
 }
 
+.psych-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.btn-edit-note {
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  opacity: 0;
+  padding: 3px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.psych-note-item:hover .btn-edit-note {
+  opacity: 0.5;
+}
+
+.btn-edit-note:hover {
+  opacity: 1 !important;
+  color: var(--accent-color, #8b5a2b) !important;
+  background: rgba(139, 90, 43, 0.08);
+}
+
 .btn-delete-note {
   background: transparent;
   border: none;
@@ -689,6 +719,77 @@ body.show-annotations .entry-annotation-panel {
   opacity: 1 !important;
   color: #B22222 !important;
   background: rgba(178, 34, 34, 0.08);
+}
+
+.psych-note-edit-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.psych-note-textarea {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-color);
+  background: var(--bg-color);
+  border: 1px solid rgba(46, 43, 42, 0.2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+}
+
+.psych-note-textarea:focus {
+  border-color: var(--accent-color, #8b5a2b);
+}
+
+.psych-note-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.btn-note-cancel {
+  background: transparent;
+  border: 1px solid rgba(46, 43, 42, 0.15);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-note-cancel:hover {
+  background: rgba(46, 43, 42, 0.05);
+  color: var(--ink-color);
+}
+
+.btn-note-save {
+  background: var(--ink-color);
+  border: 1px solid var(--ink-color);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--bg-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-note-save:hover {
+  background: #000;
+  border-color: #000;
 }
 
 .psych-note-body {
