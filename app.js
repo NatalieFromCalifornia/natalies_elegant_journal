@@ -1249,7 +1249,8 @@ CORE ANALYTICAL DIRECTIVES:
 
   renderPanelContent(entry) {
     const notes = entry.psychAnnotations || [];
-    const isLoading = this.activeJobs.has(entry.id);
+    const targetId = canonicalId(entry.id);
+    const isLoading = this.activeJobs.has(targetId);
 
     let notesHtml = "";
     if (notes.length > 0) {
@@ -1259,7 +1260,12 @@ CORE ANALYTICAL DIRECTIVES:
           <div class="psych-note-item" data-note-id="${n.id}">
             <div class="psych-note-top">
               <span class="psych-note-tag">✦ ${n.tag || 'ANNOTATION'} · ${timeStr}</span>
-              <button type="button" class="btn-delete-note" data-entry-id="${entry.id}" data-note-id="${n.id}" title="Discard Note">✕</button>
+              <div class="psych-note-actions">
+                <button type="button" class="btn-edit-note" data-entry-id="${targetId}" data-note-id="${n.id}" title="Edit Note">
+                  <svg class="lucide-edit-icon" viewBox="0 0 24 24" style="width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                </button>
+                <button type="button" class="btn-delete-note" data-entry-id="${targetId}" data-note-id="${n.id}" title="Discard Note">✕</button>
+              </div>
             </div>
             <div class="psych-note-body">${Renderer.render(n.note)}</div>
           </div>
@@ -2089,10 +2095,63 @@ document.addEventListener("DOMContentLoaded", () => {
     initTextareaAutoResize(textarea);
   }
 
-  // Double click existing entry card to edit it
+  // Helper to open specific psychologist note in edit mode
+  function openNoteEditor(noteItem, entryId, noteId) {
+    if (!noteItem || !reminisceUnlocked) return;
+    const cleanEntryId = canonicalId(entryId);
+    const privateEntries = DB.getPrivateEntries();
+    const entry = privateEntries.find(ent => canonicalId(ent.id) === cleanEntryId);
+    if (!entry || !entry.psychAnnotations) return;
+    const noteObj = entry.psychAnnotations.find(n => n.id === noteId);
+    if (!noteObj) return;
+
+    const bodyEl = noteItem.querySelector(".psych-note-body");
+    if (!bodyEl) return;
+
+    // If already editing, don't re-create
+    if (bodyEl.querySelector(".psych-note-edit-box")) return;
+
+    const escapedNote = Renderer.escapeHtml(noteObj.note);
+    bodyEl.innerHTML = `
+      <div class="psych-note-edit-box">
+        <textarea class="psych-note-textarea" placeholder="Edit observation...">${escapedNote}</textarea>
+        <div class="psych-note-edit-actions">
+          <button type="button" class="btn-note-cancel" data-entry-id="${cleanEntryId}" data-note-id="${noteId}">CANCEL</button>
+          <button type="button" class="btn-note-save" data-entry-id="${cleanEntryId}" data-note-id="${noteId}">DONE</button>
+        </div>
+      </div>
+    `;
+    const textarea = bodyEl.querySelector(".psych-note-textarea");
+    if (textarea) {
+      initTextareaAutoResize(textarea);
+      textarea.focus();
+      const len = textarea.value.length;
+      textarea.setSelectionRange(len, len);
+    }
+  }
+
+  // Double click handler: separate journal entry card vs psychologist note
   timelineFeed.addEventListener("dblclick", (e) => {
     if (!reminisceUnlocked) return;
 
+    // 1. If double-clicked inside an annotation note: edit the note!
+    const noteItem = e.target.closest(".psych-note-item");
+    if (noteItem) {
+      e.stopPropagation();
+      e.preventDefault();
+      const deleteBtn = noteItem.querySelector(".btn-delete-note") || noteItem.querySelector(".btn-edit-note");
+      const entryId = deleteBtn ? deleteBtn.dataset.entryId : (noteItem.closest(".timeline-row") ? noteItem.closest(".timeline-row").dataset.id : null);
+      const noteId = noteItem.dataset.noteId || (deleteBtn ? deleteBtn.dataset.noteId : null);
+      if (entryId && noteId) {
+        openNoteEditor(noteItem, entryId, noteId);
+      }
+      return;
+    }
+
+    // 2. If double-clicked anywhere else in the annotation panel, do nothing
+    if (e.target.closest(".entry-annotation-panel")) return;
+
+    // 3. Otherwise: double-clicked the main journal card -> edit the reflection
     const row = e.target.closest(".timeline-row");
     if (!row) return;
 
@@ -2948,8 +3007,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Event delegation for discarding individual psychologist notes
-  document.addEventListener("click", (e) => {
+  // Event delegation for psychologist notes (Edit, Save, Cancel, Discard)
+  document.addEventListener("click", async (e) => {
+    // 1. Discard / Delete Note
     const deleteBtn = e.target.closest(".btn-delete-note");
     if (deleteBtn && reminisceUnlocked) {
       e.stopPropagation();
@@ -2958,6 +3018,64 @@ document.addEventListener("DOMContentLoaded", () => {
       if (entryId && noteId) {
         deletePsychAnnotation(entryId, noteId);
       }
+      return;
+    }
+
+    // 2. Click Edit Button on Note
+    const editBtn = e.target.closest(".btn-edit-note");
+    if (editBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const entryId = editBtn.dataset.entryId;
+      const noteId = editBtn.dataset.noteId;
+      const noteItem = editBtn.closest(".psych-note-item");
+      if (noteItem && entryId && noteId) {
+        openNoteEditor(noteItem, entryId, noteId);
+      }
+      return;
+    }
+
+    // 3. Cancel Note Edit
+    const cancelBtn = e.target.closest(".btn-note-cancel");
+    if (cancelBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const entryId = canonicalId(cancelBtn.dataset.entryId);
+      const privateEntries = DB.getPrivateEntries();
+      const entry = privateEntries.find(ent => canonicalId(ent.id) === entryId);
+      if (entry) {
+        PsychEngine.updateCardDOM(entry);
+      }
+      return;
+    }
+
+    // 4. Save Note Edit
+    const saveBtn = e.target.closest(".btn-note-save");
+    if (saveBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const entryId = canonicalId(saveBtn.dataset.entryId);
+      const noteId = saveBtn.dataset.noteId;
+      const noteItem = saveBtn.closest(".psych-note-item");
+      if (!noteItem) return;
+
+      const textarea = noteItem.querySelector(".psych-note-textarea");
+      if (!textarea) return;
+      const updatedText = textarea.value.trim();
+      if (!updatedText) {
+        UI.showNotification("Note cannot be empty.");
+        return;
+      }
+
+      const privateEntries = DB.getPrivateEntries();
+      const entry = privateEntries.find(ent => canonicalId(ent.id) === entryId);
+      if (!entry || !entry.psychAnnotations) return;
+
+      const noteObj = entry.psychAnnotations.find(n => n.id === noteId);
+      if (noteObj) {
+        noteObj.note = updatedText;
+        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+        PsychEngine.updateCardDOM(entry);
+        UI.showNotification("Observation note updated.");
+      }
+      return;
     }
   });
 
