@@ -1359,32 +1359,40 @@ document.addEventListener("DOMContentLoaded", () => {
     renderTimeline();
 
     await DB.initFirebase();
-    await DB.healRecoveredEntries();
     
     // Auto login session verification
     if (auth) {
       window.Firebase.onAuthStateChanged(auth, async (user) => {
-        if (user && ownerEmail && user.email === ownerEmail) {
-          reminisceUnlocked = true;
-          applyModeUI();
-          renderTimeline(); // Immediate render of private local cache
+        if (user && ownerEmail) {
+          const userEmail = (user.email || "").toLowerCase().trim();
+          const configuredOwner = (ownerEmail || "").toLowerCase().trim();
           
-          await DB.fetchCloudSettings();
-          // Progressive network streaming callback: renders top entry immediately when fetched, then remaining entries
-          await DB.fetchPrivateCloudEntries(() => {
+          if (userEmail === configuredOwner) {
+            reminisceUnlocked = true;
+            sessionStorage.setItem("ej_reminisce_unlocked", "true");
+            applyModeUI();
+            renderTimeline(); // Immediate render of private local cache
+            
+            await DB.fetchCloudSettings();
+            await DB.fetchPrivateCloudEntries(() => {
+              renderTimeline();
+            });
+            isInitialCloudFetchComplete = true;
             renderTimeline();
-          });
-        } else if (user) {
-          // If logged in with wrong email, sign out instantly and notify
-          await window.Firebase.signOut(auth);
-          reminisceUnlocked = false;
-          UI.showNotification("Access denied: Only the journal owner can unlock.");
-          applyModeUI();
-          renderTimeline();
-        } else {
-          reminisceUnlocked = false;
-          applyModeUI();
-          renderTimeline();
+          } else {
+            await window.Firebase.signOut(auth);
+            reminisceUnlocked = false;
+            sessionStorage.removeItem("ej_reminisce_unlocked");
+            UI.showAlert(`Access denied: Signed in as '${user.email}', but only the owner ('${ownerEmail}') can unlock this journal.`, "UNAUTHORIZED ACCOUNT");
+            applyModeUI();
+            renderTimeline();
+          }
+        } else if (!user) {
+          if (sessionStorage.getItem("ej_reminisce_unlocked") !== "true") {
+            reminisceUnlocked = false;
+            applyModeUI();
+            renderTimeline();
+          }
         }
       });
     } else {
@@ -1396,8 +1404,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Public streaming callback
     await DB.fetchPublicCloudEntries(() => {
-      renderTimeline();
+      if (!reminisceUnlocked) {
+        renderTimeline();
+      }
     });
+    isInitialCloudFetchComplete = true;
+    renderTimeline();
     loadSettingsIntoForm();
     setupEventListeners();
   }
@@ -2099,14 +2111,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Header logout button click handler
   if (btnHeaderLogout) {
     btnHeaderLogout.addEventListener("click", async () => {
+      reminisceUnlocked = false;
+      sessionStorage.removeItem("ej_reminisce_unlocked");
       if (auth) {
-        await window.Firebase.signOut(auth);
-      } else {
-        reminisceUnlocked = false;
-        sessionStorage.removeItem("ej_reminisce_unlocked");
-        applyModeUI();
-        renderTimeline();
+        try {
+          await window.Firebase.signOut(auth);
+        } catch(e) {}
       }
+      applyModeUI();
+      renderTimeline();
       UI.showNotification("Logged out of journal.");
     });
   }
@@ -2501,15 +2514,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (auth) {
       try {
         const provider = new window.Firebase.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
         const res = await window.Firebase.signInWithPopup(auth, provider);
-        if (res.user && ownerEmail && res.user.email !== ownerEmail) {
-          await window.Firebase.signOut(auth);
-          reminisceUnlocked = false;
-          UI.showNotification("Access denied: Only the journal owner can unlock.");
+        if (res.user) {
+          const userEmail = (res.user.email || "").toLowerCase().trim();
+          const configuredOwner = (ownerEmail || "").toLowerCase().trim();
+          if (configuredOwner && userEmail !== configuredOwner) {
+            await window.Firebase.signOut(auth);
+            reminisceUnlocked = false;
+            sessionStorage.removeItem("ej_reminisce_unlocked");
+            UI.showAlert(`Access denied: '${res.user.email}' is not the authorized owner (${ownerEmail}).`, "ACCESS DENIED");
+            applyModeUI();
+            renderTimeline();
+          } else {
+            reminisceUnlocked = true;
+            sessionStorage.setItem("ej_reminisce_unlocked", "true");
+            applyModeUI();
+            renderTimeline();
+            await DB.fetchCloudSettings();
+            await DB.fetchPrivateCloudEntries(() => {
+              renderTimeline();
+            });
+            UI.showNotification("Journal unlocked.");
+          }
         }
       } catch (err) {
         console.error("Sign-in failed:", err);
-        UI.showNotification("Google Sign-In failed or was cancelled.");
+        if (err.code !== "auth/popup-closed-by-user") {
+          UI.showAlert("Google Sign-In error: " + (err.message || err.code), "SIGN IN FAILED");
+        }
       }
     } else {
       // Offline fallback login: simulate lock bypass
@@ -2517,6 +2550,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sessionStorage.setItem("ej_reminisce_unlocked", "true");
       applyModeUI();
       renderTimeline();
+      UI.showNotification("Journal unlocked (Offline mode).");
     }
   });
 
