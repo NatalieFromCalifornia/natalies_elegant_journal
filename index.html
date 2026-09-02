@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=10.6">
+  <link rel="stylesheet" href="style.css?v=10.7">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -262,13 +262,17 @@
                 <label>SAFETY ARCHIVE & BACKUPS</label>
                 <span class="help-text" style="display: block; margin-bottom: 10px;">Download an offline JSON snapshot of your entire journal or restore from a previous backup.</span>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                  <button type="button" id="btn-export-backup" class="btn-retro" style="flex: 1; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                  <button type="button" id="btn-export-backup" class="btn-retro" style="flex: 1; min-width: 140px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
                     <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     <span>DOWNLOAD BACKUP</span>
                   </button>
-                  <button type="button" id="btn-import-backup-trigger" class="btn-retro" style="flex: 1; min-width: 150px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                  <button type="button" id="btn-import-backup-trigger" class="btn-retro" style="flex: 1; min-width: 140px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
                     <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     <span>RESTORE BACKUP</span>
+                  </button>
+                  <button type="button" id="btn-force-cloud-sync" class="btn-retro" style="flex: 1; min-width: 140px; color: var(--accent-color, #8b5a2b); border-color: var(--accent-color, #8b5a2b); display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+                    <span>SYNC TO CLOUD</span>
                   </button>
                   <input type="file" id="backup-file-input" accept=".json" style="display: none;">
                 </div>
@@ -377,6 +381,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=10.6"></script>
+  <script src="app.js?v=10.7"></script>
 </body>
 </html>
