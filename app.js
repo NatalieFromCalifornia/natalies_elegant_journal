@@ -493,6 +493,19 @@ const DB = {
         console.error("Failed to write settings to Firestore:", err);
       }
     }
+  },
+
+  async syncAllToCloud() {
+    if (!db || !auth || !auth.currentUser) return;
+    try {
+      const privateEntries = this.getPrivateEntries();
+      for (const entry of privateEntries) {
+        await this.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+      }
+      console.log(`Successfully synced ${privateEntries.length} entries to public & private Firestore.`);
+    } catch (err) {
+      console.error("syncAllToCloud error:", err);
+    }
   }
 };
 
@@ -1342,7 +1355,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnSignOut = document.getElementById("btn-sign-out");
   const btnExportBackup = document.getElementById("btn-export-backup");
   const btnImportBackupTrigger = document.getElementById("btn-import-backup-trigger");
+  const btnForceCloudSync = document.getElementById("btn-force-cloud-sync");
   const backupFileInput = document.getElementById("backup-file-input");
+
+  if (btnForceCloudSync) {
+    btnForceCloudSync.addEventListener("click", async () => {
+      if (!auth || !auth.currentUser) {
+        UI.showAlert("Please unlock your journal with Google Sign-In first to sync to cloud.", "LOGIN REQUIRED");
+        return;
+      }
+      btnForceCloudSync.disabled = true;
+      btnForceCloudSync.textContent = "SYNCING...";
+      try {
+        await DB.syncAllToCloud();
+        UI.showNotification("✦ Cloud sync complete! All entries and photos updated.");
+      } catch (err) {
+        UI.showAlert("Sync failed: " + err.message, "SYNC ERROR");
+      } finally {
+        btnForceCloudSync.disabled = false;
+        btnForceCloudSync.textContent = "SYNC TO CLOUD";
+      }
+    });
+  }
 
   // States
   let activeSelection = null;
@@ -1477,8 +1511,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const entries = reminisceUnlocked ? DB.getPrivateEntries() : DB.getPublicEntries();
     
     if (!entries || entries.length === 0) {
-      if (feedLoadingState) feedLoadingState.style.display = "none";
-      if (welcomeState) welcomeState.style.display = "block";
+      if (!isInitialCloudFetchComplete) {
+        if (feedLoadingState) feedLoadingState.style.display = "flex";
+        if (welcomeState) welcomeState.style.display = "none";
+      } else {
+        if (feedLoadingState) feedLoadingState.style.display = "none";
+        if (welcomeState) welcomeState.style.display = "block";
+      }
       timelineFeed.innerHTML = "";
       return;
     }
