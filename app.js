@@ -506,6 +506,74 @@ const DB = {
     } catch (err) {
       console.error("syncAllToCloud error:", err);
     }
+  },
+
+  // CBT Advices Persistence & Firestore Cloud Sync
+  getCbtAdvices() {
+    const raw = localStorage.getItem("ej_cbt_advices");
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async saveCbtAdvices(advices) {
+    if (!Array.isArray(advices)) return;
+    this.safeSetItem("ej_cbt_advices", JSON.stringify(advices));
+
+    if (db && auth && auth.currentUser) {
+      try {
+        const docRef = window.Firebase.doc(db, "natalie_journal_config", "cbt_advices");
+        await window.Firebase.setDoc(docRef, { advices, updatedAt: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.error("Failed to sync CBT advices to Firestore:", err);
+      }
+    }
+  },
+
+  async fetchCloudCbtAdvices() {
+    if (!db || !auth || !auth.currentUser) return null;
+    try {
+      const docRef = window.Firebase.doc(db, "natalie_journal_config", "cbt_advices");
+      const docSnap = await window.Firebase.getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const cloudAdvices = data.advices || [];
+        const localAdvices = this.getCbtAdvices();
+
+        const adviceMap = new Map();
+        localAdvices.forEach(a => { if (a && a.id) adviceMap.set(a.id, a); });
+        cloudAdvices.forEach(a => { if (a && a.id) adviceMap.set(a.id, a); });
+
+        const merged = Array.from(adviceMap.values());
+        merged.sort((a, b) => safeParseDate(b.timestamp) - safeParseDate(a.timestamp));
+        this.safeSetItem("ej_cbt_advices", JSON.stringify(merged));
+        return merged;
+      }
+    } catch (err) {
+      console.error("Failed to fetch CBT advices from Firestore:", err);
+    }
+    return null;
+  },
+
+  async deleteCbtAdvice(adviceId) {
+    const advices = this.getCbtAdvices().filter(a => a.id !== adviceId);
+    await this.saveCbtAdvices(advices);
+    return advices;
+  },
+
+  async updateCbtAdvice(adviceId, newContent) {
+    const advices = this.getCbtAdvices();
+    const target = advices.find(a => a.id === adviceId);
+    if (target) {
+      target.content = newContent;
+      target.updatedAt = new Date().toISOString();
+      await this.saveCbtAdvices(advices);
+    }
+    return advices;
   }
 };
 
@@ -1309,6 +1377,177 @@ CORE ANALYTICAL DIRECTIVES:
   }
 };
 
+// Cognitive Behavioral Therapy (CBT) Quality-of-Life Advices Engine
+const CBTEngine = {
+  isGenerating: false,
+
+  async generateAdvice() {
+    const settings = DB.getSettings();
+    if (!settings.apiKey) {
+      if (typeof UI !== "undefined" && UI.showAlert) {
+        UI.showAlert("Please configure your Gemini API Key in MENU to generate CBT advice.", "API KEY REQUIRED");
+      }
+      return null;
+    }
+
+    const currentModel = settings.psychModel || "gemini-3.1-pro-preview";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
+
+    const CBT_SYSTEM_PROMPT = `You are a world-class clinical therapist and cognitive behavioral therapy (CBT) specialist conducting an ongoing longitudinal quality-of-life consultation for Natalie.
+Your role is to formulate actionable, gentle, highly practical CBT practices and micro-routine adjustments tailored directly to Natalie's authentic lived experiences, defense mechanisms, emotional struggles, relational patterns, and somatic symptoms.
+
+CRITICAL THERAPEUTIC PRINCIPLES & INTERVENTION RULES:
+1. FOCUS ON LOW-FRICTION MICRO-HABITS (ZERO OVERWHELM):
+   - Natalie explicitly prefers small, effortless practices that she can seamlessly slip into her daily routine without huge commitments, major willpower drains, or rigid lifestyle overhauls.
+   - Interventions must be concrete, 1-to-2-minute micro-actions (e.g. 30-second somatic resets, cognitive reframing cues stacked onto existing daily habits like making tea or standing in the shower, gentle behavioral curiosity experiments).
+2. DEEP CONTEXTUAL GROUNDING:
+   - Base your recommendations on her real journal reflections AND the analyst's longitudinal case notes.
+   - Address her specific psychological themes (e.g., social anxiety / fear of burdening friends, somatic displacement like migraines/tummyaches, dysphoria/misgendering emotional recovery, perfectionism/isolation tendencies, guilt around rest, health anxiety).
+3. EMPATHETIC, NON-PATRONIZING CLINICAL TONE:
+   - Grounded, warm, perceptive, and intellectually honest.
+   - Avoid generic platitudes ("Take a deep breath!", "Practice self-care!"). Provide precise, tailored cognitive behavioral mechanisms.
+4. STRUCTURE OF EACH ADVICE CONSULTATION:
+   Format clearly with clean markdown headings and bullet points:
+   ### ✦ Core Cognitive Insight
+   (1–2 sentences pinpointing the specific cognitive distortion, automatic thought loop, or behavioral avoidance pattern highlighted in recent reflections.)
+   ### ✦ Routine Micro-Practices (1–2 Min Habits)
+   (2–3 concrete, ultra-low-friction micro-actions designed to slip effortlessly into existing daily moments.)
+   ### ✦ Low-Stakes Behavioral Experiment
+   (A gentle, curiosity-driven experiment to test an alternative thought or action this week without pressure.)`;
+
+    // 1. Gather all private reflections in chronological order
+    const privateEntries = DB.getPrivateEntries();
+    const sortedEntries = [...privateEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
+
+    const fullTimelineContext = sortedEntries.map((e, idx) => {
+      const d = Renderer.formatFullDateTime(e.date || e.createdAt);
+      const text = (e.rawContent || e.victorianContent || "").replace(/!\[.*?\]\(.*?\)/g, "[Image]");
+      let notesStr = "";
+      if (e.psychAnnotations && e.psychAnnotations.length > 0) {
+        notesStr = "\n  Case Notes: " + e.psychAnnotations.map(n => `"${n.note}"`).join(" | ");
+      }
+      return `[Entry ${idx + 1} - ${d}]:\n"${text}"${notesStr}`;
+    }).join("\n\n---\n\n");
+
+    // 2. Gather prior CBT advice history
+    const priorAdvices = DB.getCbtAdvices();
+    let priorAdvicesContext = "";
+    if (priorAdvices.length > 0) {
+      priorAdvicesContext = "\n\nPRIOR CBT ADVICE SESSIONS (Build upon these and evolve recommendations with new information):\n" +
+        priorAdvices.slice(0, 5).map((a, i) => `[Session ${i + 1} (${Renderer.formatFullDateTime(a.timestamp)})]:\n${a.content}`).join("\n\n---\n\n");
+    }
+
+    const userPrompt = `COMPLETE LONGITUDINAL JOURNAL & CASE NOTES OF NATALIE:\n${fullTimelineContext}${priorAdvicesContext}\n\nBased on Natalie's entire reflection history and psychologist observations, formulate your new CBT quality-of-life consultation. Focus on actionable micro-habits she can slip effortlessly into her daily routine. Output your structured consultation advice directly.`;
+
+    const payload = {
+      contents: [{ parts: [{ text: userPrompt }] }],
+      systemInstruction: { parts: [{ text: CBT_SYSTEM_PROMPT }] },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+      ]
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `API error ${res.status}`);
+    }
+
+    const candidate = data.candidates?.[0];
+    const adviceText = candidate?.content?.parts?.[0]?.text?.trim();
+    if (!adviceText) {
+      throw new Error("No advice content generated from API.");
+    }
+
+    const newAdviceObj = {
+      id: "cbt-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+      timestamp: new Date().toISOString(),
+      model: currentModel,
+      content: adviceText
+    };
+
+    const existingAdvices = DB.getCbtAdvices();
+    existingAdvices.unshift(newAdviceObj);
+    await DB.saveCbtAdvices(existingAdvices);
+    return newAdviceObj;
+  },
+
+  renderAdvicesList() {
+    const listContainer = document.getElementById("cbt-advices-list");
+    const emptyState = document.getElementById("cbt-empty-state");
+    const countBadge = document.getElementById("cbt-advices-count");
+    if (!listContainer) return;
+
+    const advices = DB.getCbtAdvices();
+    if (countBadge) {
+      countBadge.textContent = `${advices.length} SESSION${advices.length === 1 ? '' : 'S'} RECORDED`;
+    }
+
+    if (advices.length === 0) {
+      listContainer.innerHTML = "";
+      if (emptyState) emptyState.style.display = "flex";
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = "none";
+
+    listContainer.innerHTML = advices.map(a => {
+      const timeStr = Renderer.formatFullDateTime(a.timestamp);
+      return `
+        <div class="cbt-advice-card" data-advice-id="${a.id}">
+          <div class="cbt-advice-top">
+            <span class="cbt-advice-tag">✦ CBT CONSULTATION · ${timeStr}</span>
+            <div class="cbt-advice-actions">
+              <button type="button" class="btn-cbt-edit" data-advice-id="${a.id}" title="Edit / Refine Lines">
+                <svg viewBox="0 0 24 24" style="width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                <span style="font-size: 9.5px; font-weight: 700; margin-left: 3px;">EDIT</span>
+              </button>
+              <button type="button" class="btn-cbt-delete" data-advice-id="${a.id}" title="Delete Advice Session">✕</button>
+            </div>
+          </div>
+          <div class="cbt-advice-body">${Renderer.render(a.content)}</div>
+        </div>
+      `;
+    }).join("");
+  },
+
+  openAdviceEditor(cardEl, adviceId) {
+    if (!cardEl) return;
+    const advices = DB.getCbtAdvices();
+    const advice = advices.find(a => a.id === adviceId);
+    if (!advice) return;
+
+    const bodyEl = cardEl.querySelector(".cbt-advice-body");
+    if (!bodyEl || bodyEl.querySelector(".cbt-advice-edit-box")) return;
+
+    const escapedContent = Renderer.escapeHtml(advice.content);
+    bodyEl.innerHTML = `
+      <div class="cbt-advice-edit-box">
+        <span style="font-family: var(--font-sans); font-size: 9.5px; font-weight: 700; color: var(--ink-muted); text-transform: uppercase;">Edit recommendations or delete lines:</span>
+        <textarea class="cbt-advice-textarea" placeholder="Edit CBT advice...">${escapedContent}</textarea>
+        <div class="cbt-advice-edit-actions">
+          <button type="button" class="btn-retro btn-cbt-cancel" data-advice-id="${adviceId}">CANCEL</button>
+          <button type="button" class="btn-retro active btn-cbt-save" data-advice-id="${adviceId}">SAVE CHANGES</button>
+        </div>
+      </div>
+    `;
+
+    const textarea = bodyEl.querySelector(".cbt-advice-textarea");
+    if (textarea) {
+      initTextareaAutoResize(textarea);
+      textarea.focus();
+    }
+  }
+};
+
 // App Controller
 document.addEventListener("DOMContentLoaded", () => {
   // Elements
@@ -1458,11 +1697,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Toggle UI layouts based on modes
   function applyModeUI() {
+    const btnOpenCbtAdvices = document.getElementById("btn-open-cbt-advices");
     if (reminisceUnlocked) {
       document.body.classList.remove("gander-mode");
       btnUnlock.style.display = "none";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "inline-flex";
       if (observeControlGroup) observeControlGroup.style.display = "inline-flex";
+      if (btnOpenCbtAdvices) btnOpenCbtAdvices.style.display = "inline-flex";
       btnSettings.style.display = "flex";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "flex";
 
@@ -1477,6 +1718,7 @@ document.addEventListener("DOMContentLoaded", () => {
       btnUnlock.style.display = "flex";
       if (btnHeaderAdd) btnHeaderAdd.style.display = "none";
       if (observeControlGroup) observeControlGroup.style.display = "none";
+      if (btnOpenCbtAdvices) btnOpenCbtAdvices.style.display = "none";
       btnSettings.style.display = "none";
       if (headerLogoutGroup) headerLogoutGroup.style.display = "none";
       document.body.classList.remove("show-annotations");
@@ -3114,6 +3356,115 @@ document.addEventListener("DOMContentLoaded", () => {
         PsychEngine.updateCardDOM(entry);
         UI.showNotification("Observation note updated.");
       }
+      return;
+    }
+  });
+
+  // CBT Advices Modal & Action Handlers
+  const btnOpenCbtAdvices = document.getElementById("btn-open-cbt-advices");
+  const modalCbtAdvices = document.getElementById("modal-cbt-advices");
+  const btnCloseCbtAdvices = document.getElementById("btn-close-cbt-advices");
+  const btnDismissCbtAdvices = document.getElementById("btn-dismiss-cbt-advices");
+  const btnGenerateCbtAdvice = document.getElementById("btn-generate-cbt-advice");
+  const cbtGenerationLoading = document.getElementById("cbt-generation-loading");
+
+  if (btnOpenCbtAdvices && modalCbtAdvices) {
+    btnOpenCbtAdvices.addEventListener("click", () => {
+      CBTEngine.renderAdvicesList();
+      modalCbtAdvices.style.display = "flex";
+    });
+  }
+
+  if (btnCloseCbtAdvices && modalCbtAdvices) {
+    btnCloseCbtAdvices.addEventListener("click", () => {
+      modalCbtAdvices.style.display = "none";
+    });
+  }
+
+  if (btnDismissCbtAdvices && modalCbtAdvices) {
+    btnDismissCbtAdvices.addEventListener("click", () => {
+      modalCbtAdvices.style.display = "none";
+    });
+  }
+
+  if (btnGenerateCbtAdvice) {
+    btnGenerateCbtAdvice.addEventListener("click", async () => {
+      if (CBTEngine.isGenerating) return;
+
+      CBTEngine.isGenerating = true;
+      btnGenerateCbtAdvice.disabled = true;
+      if (cbtGenerationLoading) cbtGenerationLoading.style.display = "flex";
+
+      try {
+        await CBTEngine.generateAdvice();
+        CBTEngine.renderAdvicesList();
+        UI.showNotification("✦ New CBT consultation advice formulated!");
+      } catch (err) {
+        console.error("CBT advice generation error:", err);
+        UI.showAlert("Failed to generate CBT advice: " + (err.message || err), "CONSULTATION ERROR");
+      } finally {
+        CBTEngine.isGenerating = false;
+        btnGenerateCbtAdvice.disabled = false;
+        if (cbtGenerationLoading) cbtGenerationLoading.style.display = "none";
+      }
+    });
+  }
+
+  // Event delegation for CBT advice card actions (Delete, Edit, Save, Cancel)
+  document.addEventListener("click", async (e) => {
+    // 1. Delete CBT Advice Card
+    const deleteBtn = e.target.closest(".btn-cbt-delete");
+    if (deleteBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const adviceId = deleteBtn.dataset.adviceId;
+      if (adviceId) {
+        await DB.deleteCbtAdvice(adviceId);
+        CBTEngine.renderAdvicesList();
+        UI.showNotification("Advice session deleted.");
+      }
+      return;
+    }
+
+    // 2. Edit CBT Advice Card
+    const editBtn = e.target.closest(".btn-cbt-edit");
+    if (editBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const adviceId = editBtn.dataset.adviceId;
+      const cardEl = editBtn.closest(".cbt-advice-card");
+      if (cardEl && adviceId) {
+        CBTEngine.openAdviceEditor(cardEl, adviceId);
+      }
+      return;
+    }
+
+    // 3. Cancel CBT Advice Edit
+    const cancelBtn = e.target.closest(".btn-cbt-cancel");
+    if (cancelBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      CBTEngine.renderAdvicesList();
+      return;
+    }
+
+    // 4. Save CBT Advice Edit
+    const saveBtn = e.target.closest(".btn-cbt-save");
+    if (saveBtn && reminisceUnlocked) {
+      e.stopPropagation();
+      const adviceId = saveBtn.dataset.adviceId;
+      const cardEl = saveBtn.closest(".cbt-advice-card");
+      if (!cardEl || !adviceId) return;
+
+      const textarea = cardEl.querySelector(".cbt-advice-textarea");
+      if (!textarea) return;
+
+      const updatedText = textarea.value.trim();
+      if (!updatedText) {
+        UI.showNotification("Advice content cannot be empty.");
+        return;
+      }
+
+      await DB.updateCbtAdvice(adviceId, updatedText);
+      CBTEngine.renderAdvicesList();
+      UI.showNotification("✦ CBT advice updated.");
       return;
     }
   });

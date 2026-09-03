@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=10.7">
+  <link rel="stylesheet" href="style.css?v=10.8">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -54,6 +54,12 @@
               </span>
             </button>
           </div>
+
+          <!-- ADVICES button shown in Reminisce Mode -->
+          <button id="btn-open-cbt-advices" class="btn-menu btn-header-cbt" title="CBT Quality of Life Advices" style="display: none;">
+            <svg class="cbt-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M12 12 2.1 10a10 10 0 0 0 16.8 5.6Z"/><path d="m12 12 4.9-8.5A10 10 0 0 0 5.6 18.9Z"/></svg>
+            <span>ADVICES</span>
+          </button>
 
           <!-- MENU button shown only in Reminisce Mode -->
           <button id="btn-settings" class="btn-menu" title="Menu" style="display: none;">
@@ -351,6 +357,57 @@
       </div>
     </div>
 
+    <!-- CBT Advices Modal -->
+    <div id="modal-cbt-advices" class="modal-overlay">
+      <div class="modal-card cbt-modal-card">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg style="width: 17px; height: 17px; fill: none; stroke: var(--accent-color, #8b5a2b); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M12 12 2.1 10a10 10 0 0 0 16.8 5.6Z"/><path d="m12 12 4.9-8.5A10 10 0 0 0 5.6 18.9Z"/></svg>
+            <div>
+              <h2 style="font-size: 13.5px; margin: 0; letter-spacing: 0.12em;">CBT QUALITY-OF-LIFE ADVICE</h2>
+              <span class="cbt-modal-subtitle">Therapeutic cognitive behavioral practices & micro-routine habits formulated from your longitudinal reflections and case notes.</span>
+            </div>
+          </div>
+          <button id="btn-close-cbt-advices" class="btn-close-retro" title="Close">[ X ]</button>
+        </div>
+        
+        <div class="cbt-modal-action-bar">
+          <button type="button" id="btn-generate-cbt-advice" class="btn-retro active cbt-generate-btn">
+            <span class="btn-cbt-icon">✦</span>
+            <span class="btn-cbt-text">GENERATE NEW ADVICE</span>
+          </button>
+          <div class="cbt-advices-count-badge" id="cbt-advices-count">0 SESSIONS RECORDED</div>
+        </div>
+
+        <div class="modal-body cbt-modal-body">
+          <!-- Active generation loading pulse -->
+          <div id="cbt-generation-loading" class="cbt-generation-loading" style="display: none;">
+            <div class="pulse-star">✦</div>
+            <div class="cbt-loading-text-wrap">
+              <div class="cbt-loading-title">CONSULTING LONGITUDINAL JOURNAL & CASE NOTES...</div>
+              <div class="cbt-loading-subtitle">Formulating low-friction CBT practices tailored to slip into your daily routine.</div>
+            </div>
+          </div>
+
+          <!-- List of persistent advice cards -->
+          <div id="cbt-advices-list" class="cbt-advices-list">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <!-- Empty State -->
+          <div id="cbt-empty-state" class="cbt-empty-state" style="display: none;">
+            <div class="cbt-empty-icon">✦</div>
+            <div class="cbt-empty-title">NO THERAPEUTIC ADVICE GENERATED YET</div>
+            <div class="cbt-empty-desc">Click "GENERATE NEW ADVICE" above to consult your complete reflection history and formulate personalized, low-friction Cognitive Behavioral Therapy practices.</div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="justify-content: flex-end;">
+          <button type="button" id="btn-dismiss-cbt-advices" class="btn-retro">CLOSE</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Delete All Annotations Confirmation Modal -->
     <div id="modal-delete-annotations" class="modal-overlay">
       <div class="modal-card">
@@ -381,6 +438,6 @@
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=10.7"></script>
+  <script src="app.js?v=10.8"></script>
 </body>
 </html>
