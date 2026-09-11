@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..900;1,300..900&family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=11.1">
+  <link rel="stylesheet" href="style.css?v=11.2">
   <!-- Firebase SDK Modules (App, Firestore, Auth CDN) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -432,12 +432,30 @@
     </div>
   </div>
 
+  <!-- Persistent Floating Batch Annotation Progress Widget -->
+  <div id="batch-annotate-progress" class="batch-progress-widget" style="display: none;">
+    <div class="batch-progress-main">
+      <div class="pulse-star" style="font-size: 13px;">✦</div>
+      <div class="batch-progress-details">
+        <div class="batch-progress-header-row">
+          <span class="batch-progress-title">ANNOTATING REFLECTIONS</span>
+          <span class="batch-progress-stats" id="batch-progress-stats">0 / 0</span>
+        </div>
+        <div class="batch-progress-track">
+          <div class="batch-progress-fill" id="batch-progress-fill" style="width: 0%;"></div>
+        </div>
+        <div class="batch-progress-status" id="batch-progress-status">Analyzing reflection...</div>
+      </div>
+      <button type="button" id="btn-batch-pause" class="btn-retro btn-batch-control" title="Pause / Resume Generation">PAUSE</button>
+    </div>
+  </div>
+
   <!-- Less intrusive temporary snackbar notification -->
   <div id="snackbar" class="snackbar"></div>
 
   <!-- Hidden global file input for image uploads -->
   <input type="file" id="global-image-input" accept="image/*" style="display: none;">
 
-  <script src="app.js?v=11.1"></script>
+  <script src="app.js?v=11.2"></script>
 </body>
 </html>

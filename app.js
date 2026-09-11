@@ -1284,7 +1284,46 @@ CORE ANALYTICAL DIRECTIVES:
     UI.showNotification("Annotation complete!");
   },
 
-  async autoSync() {
+  // Persistent Batch Queue Management
+  getQueueState() {
+    const raw = localStorage.getItem("ej_batch_annotate_queue");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch(e) {
+      return null;
+    }
+  },
+
+  saveQueueState(state) {
+    if (!state) {
+      localStorage.removeItem("ej_batch_annotate_queue");
+    } else {
+      localStorage.setItem("ej_batch_annotate_queue", JSON.stringify(state));
+    }
+  },
+
+  updateBatchUI(current, total, statusText = null) {
+    const widget = document.getElementById("batch-annotate-progress");
+    const statsEl = document.getElementById("batch-progress-stats");
+    const fillEl = document.getElementById("batch-progress-fill");
+    const statusEl = document.getElementById("batch-progress-status");
+    const pauseBtn = document.getElementById("btn-batch-pause");
+
+    if (!widget) return;
+    if (total === 0 || (!this.isSyncing && (!this.getQueueState() || !this.getQueueState().isRunning))) {
+      widget.style.display = "none";
+      return;
+    }
+
+    widget.style.display = "block";
+    if (statsEl) statsEl.textContent = `${current} / ${total}`;
+    if (fillEl) fillEl.style.width = `${Math.round((current / total) * 100)}%`;
+    if (statusEl && statusText) statusEl.textContent = statusText;
+    if (pauseBtn) pauseBtn.textContent = this.isSyncing ? "PAUSE" : "RESUME";
+  },
+
+  async autoSync(targetList = null) {
     const settings = DB.getSettings();
     if (!settings.apiKey) {
       if (typeof UI !== "undefined" && UI.showAlert) {
@@ -1294,23 +1333,108 @@ CORE ANALYTICAL DIRECTIVES:
     }
 
     const privateEntries = DB.getPrivateEntries();
-    const missing = privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0);
+    const missing = (targetList || privateEntries.filter(e => !e.psychAnnotations || e.psychAnnotations.length === 0));
 
     if (missing.length === 0) {
       UI.showNotification("All reflections are already annotated.");
+      this.saveQueueState(null);
+      this.updateBatchUI(0, 0);
       return;
     }
 
     // Sort oldest first
     missing.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
 
+    const queueState = {
+      isRunning: true,
+      pendingIds: missing.map(e => e.id),
+      completedIds: [],
+      totalCount: missing.length,
+      startedAt: new Date().toISOString()
+    };
+
+    this.saveQueueState(queueState);
+    await this.processQueue();
+  },
+
+  async resumeQueue() {
+    const queueState = this.getQueueState();
+    if (!queueState || !queueState.isRunning || !Array.isArray(queueState.pendingIds) || queueState.pendingIds.length === 0) {
+      return;
+    }
+    console.log(`[PsychEngine] Resuming unfinished batch annotation queue (${queueState.completedIds.length}/${queueState.totalCount} completed)...`);
+    UI.showNotification(`✦ Resuming batch annotation (${queueState.completedIds.length} of ${queueState.totalCount} completed)...`);
+    await this.processQueue();
+  },
+
+  pauseQueue() {
+    const queueState = this.getQueueState();
+    if (queueState) {
+      queueState.isRunning = false;
+      this.saveQueueState(queueState);
+    }
+    this.isSyncing = false;
+    this.updateBatchUI(
+      queueState ? queueState.completedIds.length : 0,
+      queueState ? queueState.totalCount : 0,
+      "Batch paused."
+    );
+    UI.showNotification("Batch annotation paused.");
+  },
+
+  async processQueue() {
+    if (this.isSyncing) return;
     this.isSyncing = true;
+
+    const beforeUnloadHandler = (e) => {
+      if (this.isSyncing) {
+        e.preventDefault();
+        e.returnValue = "Batch annotation is in progress. Progress is automatically saved.";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+
     try {
-      for (const entry of missing) {
+      while (this.isSyncing) {
+        const queueState = this.getQueueState();
+        if (!queueState || !queueState.isRunning || queueState.pendingIds.length === 0) {
+          break;
+        }
+
+        const nextId = queueState.pendingIds[0];
+        const privateEntries = DB.getPrivateEntries();
+        const entry = privateEntries.find(e => canonicalId(e.id) === canonicalId(nextId));
+
+        if (!entry) {
+          queueState.pendingIds.shift();
+          this.saveQueueState(queueState);
+          continue;
+        }
+
+        const currentStep = queueState.completedIds.length + 1;
+        const total = queueState.totalCount;
+        this.updateBatchUI(currentStep - 1, total, `Annotating reflection ${currentStep} of ${total}...`);
+
         await this.generateForEntry(entry);
+
+        queueState.pendingIds.shift();
+        queueState.completedIds.push(entry.id);
+        queueState.updatedAt = new Date().toISOString();
+        this.saveQueueState(queueState);
+
+        this.updateBatchUI(queueState.completedIds.length, total, `Completed ${queueState.completedIds.length} of ${total}`);
+      }
+
+      const finalState = this.getQueueState();
+      if (finalState && finalState.pendingIds.length === 0) {
+        this.saveQueueState(null);
+        this.updateBatchUI(0, 0);
+        UI.showNotification("✦ All reflections successfully annotated!");
       }
     } finally {
       this.isSyncing = false;
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
     }
   },
 
@@ -3268,7 +3392,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       try {
         await PsychEngine.autoSync();
-        UI.showNotification("Annotations up to date!");
       } catch (err) {
         console.error("Sync error:", err);
       } finally {
@@ -3516,6 +3639,25 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
   });
+
+  // Batch Annotation Control (Pause / Resume)
+  const btnBatchPause = document.getElementById("btn-batch-pause");
+  if (btnBatchPause) {
+    btnBatchPause.addEventListener("click", () => {
+      if (PsychEngine.isSyncing) {
+        PsychEngine.pauseQueue();
+      } else {
+        const queueState = PsychEngine.getQueueState();
+        if (queueState) {
+          queueState.isRunning = true;
+          PsychEngine.saveQueueState(queueState);
+          PsychEngine.resumeQueue();
+        } else {
+          PsychEngine.autoSync();
+        }
+      }
+    });
+  }
 
   function setupEventListeners() {}
 
