@@ -1142,7 +1142,8 @@ CORE ANALYTICAL DIRECTIVES:
 5. REFER TO HER NATURALLY: Refer to her as Natalie (or she/her). Never use sterile clinical aliases like "the diarist" or "Subject N". Speak in the third person.
 6. NO DIRECT ADVICE OR THERAPY: Do not tell her what to do, how to fix things, or suggest coping exercises. Analyze what is actually happening beneath the surface.
 7. LONGITUDINAL CONTINUITY: Connect your observations to patterns noted in prior entries and prior case notes when relevant, watching how her psychological landscape shifts over weeks and months.
-8. IGNORE STYLISTIC FLOURISHES: Strictly avoid commenting on prose style, Victorian phrasing, or grammar. Focus 100% on her authentic thoughts, emotions, actions, and real human experiences.`;
+8. IGNORE STYLISTIC FLOURISHES: Strictly avoid commenting on prose style, Victorian phrasing, or grammar. Focus 100% on her authentic thoughts, emotions, actions, and real human experiences.
+9. COMPLETE SENTENCES & THOUGHT INTEGRITY: Always complete every sentence and observation fully. Never truncate thoughts or leave sentences trailing off mid-clause. Ensure your case note concludes with proper terminal punctuation.`;
 
     // Compile chronological timeline summary with prior reflections AND prior case notes as longitudinal context
     const sortedEntries = [...allEntries].sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
@@ -1175,7 +1176,7 @@ CORE ANALYTICAL DIRECTIVES:
       contents: [{ parts: [{ text: userPrompt }] }],
       systemInstruction: { parts: [{ text: PSYCH_SYSTEM_PROMPT }] },
       generationConfig: {
-        maxOutputTokens: 600,
+        maxOutputTokens: 2048,
         temperature: 0.7
       },
       safetySettings: [
@@ -1223,14 +1224,24 @@ CORE ANALYTICAL DIRECTIVES:
         }
 
         const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const candidate = data.candidates?.[0];
+        let text = candidate?.content?.parts?.[0]?.text;
         if (!text) {
           if (typeof UI !== "undefined" && UI.showAlert) {
             UI.showAlert(`Model "${currentModel}" returned an empty response or was filtered by safety settings.`, "GENERATION NOTICE");
           }
           return null;
         }
-        return text.trim();
+        text = text.trim();
+
+        // Ensure sentence completeness and clean termination
+        if (candidate?.finishReason === "MAX_TOKENS" || (text && !/[.!?…"”']$/.test(text))) {
+          const lastTerminal = Math.max(text.lastIndexOf('.'), text.lastIndexOf('!'), text.lastIndexOf('?'), text.lastIndexOf('”'), text.lastIndexOf('"'));
+          if (lastTerminal > 25) {
+            text = text.slice(0, lastTerminal + 1).trim();
+          }
+        }
+        return text;
       } catch (e) {
         console.error(`PsychEngine network error with ${currentModel} [Attempt ${attempt}/${maxTries}]:`, e);
         if (attempt < maxTries) {
