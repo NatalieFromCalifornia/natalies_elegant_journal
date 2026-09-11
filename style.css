@@ -1485,8 +1485,8 @@ body.gander-mode .redacted-text:hover {
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
-/* Comprehensive Mobile Viewport Responsiveness Rules */
-@media (max-width: 650px) {
+/* Comprehensive Mobile Viewport Responsiveness Rules (Phones, Pixel 8 & Small Tablets) */
+@media (max-width: 820px) {
   .flow-container {
     padding: 16px 8px 120px;
     overflow-x: hidden;
@@ -1568,20 +1568,51 @@ body.gander-mode .redacted-text:hover {
   }
 
   /* Mobile show-annotations grid behavior: stack annotation card below or use compact layout */
+  /* Mobile show-annotations: stack annotation panel cleanly underneath reflection in column 3 */
   body.show-annotations .timeline-row {
+    display: grid;
     grid-template-columns: 50px 20px 1fr;
-    gap: 0;
+    grid-template-rows: auto auto;
+    row-gap: 8px;
+    column-gap: 0;
+  }
+
+  body.show-annotations .timeline-date {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+  }
+
+  body.show-annotations .timeline-node-container {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3; /* Extends timeline vertical line through reflection and annotation panel */
   }
 
   body.show-annotations .timeline-content {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    grid-column: 3 / 4;
+    grid-row: 1 / 2;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border-bottom: none; /* Seamless continuation to annotation card below */
+    padding-bottom: 2px;
   }
 
-  .entry-annotation-panel {
-    margin-top: 8px;
+  body.show-annotations .entry-annotation-panel {
+    grid-column: 3 / 4;
+    grid-row: 2 / 3;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin-top: 4px;
+    margin-bottom: 18px;
     padding: 12px 14px;
+    border: 1px dashed rgba(46, 43, 42, 0.22);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 }
 
