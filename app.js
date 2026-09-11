@@ -65,6 +65,7 @@ function deduplicateEntries(entries) {
   if (!Array.isArray(entries)) return [];
   const idMap = new Map();
   const dateMap = new Map();
+  const contentMap = new Map();
 
   for (const raw of entries) {
     if (!raw) continue;
@@ -72,13 +73,30 @@ function deduplicateEntries(entries) {
     e.id = canonicalId(e.id);
     
     // Normalize date timestamp key for exact duplicate detection
-    const dateKey = e.date ? new Date(e.date).toISOString() : (e.createdAt ? new Date(e.createdAt).toISOString() : e.id);
+    let dateKey = e.id;
+    if (e.date) {
+      const d = new Date(e.date);
+      dateKey = isNaN(d.getTime()) ? e.id : d.toISOString();
+    } else if (e.createdAt) {
+      const d = new Date(e.createdAt);
+      dateKey = isNaN(d.getTime()) ? e.id : d.toISOString();
+    }
+
+    // Normalized content fingerprint (first 50 non-whitespace chars, excluding image Base64 data)
+    const rawText = (e.rawContent || e.victorianContent || e.publicContent || "")
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/data:image\/[a-zA-Z0-9\/+;=,-]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    const contentKey = rawText.length >= 25 ? rawText.slice(0, 50) : null;
     
-    const existing = idMap.get(e.id) || dateMap.get(dateKey);
+    const existing = idMap.get(e.id) || dateMap.get(dateKey) || (contentKey ? contentMap.get(contentKey) : null);
 
     if (!existing) {
       idMap.set(e.id, e);
       dateMap.set(dateKey, e);
+      if (contentKey) contentMap.set(contentKey, e);
     } else {
       // Merge annotations seamlessly: preserve notes from whichever has them
       const existingNotes = existing.psychAnnotations || [];
@@ -103,6 +121,7 @@ function deduplicateEntries(entries) {
 
       idMap.set(existing.id, existing);
       dateMap.set(dateKey, existing);
+      if (contentKey) contentMap.set(contentKey, existing);
     }
   }
 
@@ -193,8 +212,8 @@ const DB = {
     this.safeSetItem("ej_entries_public", JSON.stringify(clean));
   },
 
-  // Private Cache (for Reminisce Mode offline cache)
-  getPrivateEntries() {
+  // Raw Private Storage (internal helper)
+  _getRawPrivateEntries() {
     const entries = localStorage.getItem("ej_entries_private");
     if (!entries) return [];
     try {
@@ -203,6 +222,13 @@ const DB = {
     } catch(e) {
       return [];
     }
+  },
+
+  // Private Cache (for Reminisce Mode - unified with public entries so no entry is ever missing)
+  getPrivateEntries() {
+    const rawPrivate = this._getRawPrivateEntries();
+    const publicList = this.getPublicEntries();
+    return deduplicateEntries([...publicList, ...rawPrivate]);
   },
   savePrivateEntries(entries) {
     const clean = deduplicateEntries(entries);
@@ -376,19 +402,35 @@ const DB = {
 
   async deleteEntry(id) {
     const targetId = canonicalId(id);
-    const publicList = this.getPublicEntries().filter(e => canonicalId(e.id) !== targetId);
+    const targetRawId = String(id).replace(/^ej-/, '');
+
+    // 1. Remove from all local caches
+    const publicList = this.getPublicEntries().filter(e => {
+      const cId = canonicalId(e.id);
+      return cId !== targetId && cId !== ('ej-' + targetRawId);
+    });
     this.savePublicEntries(publicList);
 
-    const privateList = this.getPrivateEntries().filter(e => canonicalId(e.id) !== targetId);
-    this.savePrivateEntries(privateList);
+    const rawPrivateList = this._getRawPrivateEntries().filter(e => {
+      const cId = canonicalId(e.id);
+      return cId !== targetId && cId !== ('ej-' + targetRawId);
+    });
+    this.savePrivateEntries(rawPrivateList);
 
+    // 2. Delete from both Firestore collections with both ID formats
     if (db && auth && auth.currentUser) {
       try {
         const publicDoc = window.Firebase.doc(db, "natalie_journal_public_entries", targetId);
+        const publicDocRaw = window.Firebase.doc(db, "natalie_journal_public_entries", targetRawId);
         const privateDoc = window.Firebase.doc(db, "natalie_journal_private_entries", targetId);
+        const privateDocRaw = window.Firebase.doc(db, "natalie_journal_private_entries", targetRawId);
         
-        await window.Firebase.deleteDoc(publicDoc);
-        await window.Firebase.deleteDoc(privateDoc);
+        await Promise.allSettled([
+          window.Firebase.deleteDoc(publicDoc),
+          window.Firebase.deleteDoc(publicDocRaw),
+          window.Firebase.deleteDoc(privateDoc),
+          window.Firebase.deleteDoc(privateDocRaw)
+        ]);
       } catch (err) {
         console.error("Cloud delete failed:", err);
       }
@@ -447,6 +489,7 @@ const DB = {
     try {
       const colRef = window.Firebase.collection(db, "natalie_journal_private_entries");
       const localEntries = this.getPrivateEntries();
+      const publicEntries = this.getPublicEntries();
       
       const querySnapshot = await window.Firebase.getDocs(colRef);
       const cloudEntries = [];
@@ -458,7 +501,7 @@ const DB = {
         }
       });
 
-      const mergedEntries = deduplicateEntries([...localEntries, ...cloudEntries]);
+      const mergedEntries = deduplicateEntries([...publicEntries, ...localEntries, ...cloudEntries]);
       this.savePrivateEntries(mergedEntries);
       if (onEntryStream) onEntryStream(mergedEntries);
       return mergedEntries;
