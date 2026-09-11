@@ -98,25 +98,31 @@ function deduplicateEntries(entries) {
       dateMap.set(dateKey, e);
       if (contentKey) contentMap.set(contentKey, e);
     } else {
-      // Merge annotations seamlessly: preserve notes from whichever has them
-      const existingNotes = existing.psychAnnotations || [];
-      const newNotes = e.psychAnnotations || [];
-      const mergedNotesMap = new Map();
-      existingNotes.forEach(n => { if (n && n.id) mergedNotesMap.set(n.id, n); });
-      newNotes.forEach(n => { if (n && n.id) mergedNotesMap.set(n.id, n); });
-      existing.psychAnnotations = Array.from(mergedNotesMap.values());
+      const eTime = safeParseDate(e.updatedAt);
+      const existTime = safeParseDate(existing.updatedAt);
 
-      // Merge content based on latest modification
-      if (safeParseDate(e.updatedAt) >= safeParseDate(existing.updatedAt)) {
+      if (eTime > existTime) {
+        // Newer incoming entry replaces content, redactions, and annotations authoritatively
         if (e.rawContent) existing.rawContent = e.rawContent;
         if (e.victorianContent) existing.victorianContent = e.victorianContent;
         if (e.publicContent) existing.publicContent = e.publicContent;
-        if (e.updatedAt) existing.updatedAt = e.updatedAt;
-      } else {
+        if (e.psychAnnotations !== undefined) existing.psychAnnotations = e.psychAnnotations;
+        existing.updatedAt = e.updatedAt;
+      } else if (existTime > eTime) {
+        // Existing entry is newer, keep existing content and annotations
         if (!existing.rawContent && e.rawContent) existing.rawContent = e.rawContent;
         if (!existing.victorianContent && e.victorianContent) existing.victorianContent = e.victorianContent;
         if (!existing.publicContent && e.publicContent) existing.publicContent = e.publicContent;
+      } else {
+        // Equal timestamps: fallback merge
+        if ((!existing.psychAnnotations || existing.psychAnnotations.length === 0) && e.psychAnnotations && e.psychAnnotations.length > 0) {
+          existing.psychAnnotations = e.psychAnnotations;
+        }
+        if (e.rawContent && !existing.rawContent) existing.rawContent = e.rawContent;
+        if (e.victorianContent && !existing.victorianContent) existing.victorianContent = e.victorianContent;
+        if (e.publicContent && !existing.publicContent) existing.publicContent = e.publicContent;
       }
+
       if (e.isRawFallback !== undefined) existing.isRawFallback = e.isRawFallback;
 
       idMap.set(existing.id, existing);
@@ -1127,18 +1133,20 @@ const PsychEngine = {
     const currentModel = settings.psychModel || "gemini-3.1-pro-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${settings.apiKey}`;
 
-    const PSYCH_SYSTEM_PROMPT = `You are an astute, objective psychologist and behavioral analyst providing clinical observations and case notes on the private journal reflections of Natalie.
+    const PSYCH_SYSTEM_PROMPT = `You are an astute, objective psychologist and behavioral analyst providing thoughtful clinical case notes on the private journal reflections of Natalie.
 You are studying Natalie's behavioral patterns, emotional dynamics, defense mechanisms, relational boundaries, and psychological shifts across time in an authentic longitudinal study.
 
 CORE ANALYTICAL DIRECTIVES:
-1. DYNAMIC PROPORTIONALITY & DEPTH:
-   - SCALE DEPTH NATURALLY TO THE REFLECTION:
-     • For simple, casual, or mundane reflections (e.g. food preferences, gaming, watching a movie, brief everyday remarks): Do NOT overanalyze or pathologize ordinary moments. Keep the observation brief, grounded, and concise (1–2 crisp sentences).
-     • For layered, conflicted, vulnerable, or emotionally significant reflections (e.g. dysphoria, social dynamics, panic, self-criticism, avoidance, relational boundaries): Provide thorough, penetrating, in-depth psychological insight. Explore specific defense mechanisms, cognitive tensions, and longitudinal shifts with real clinical substance (1–2 rich, focused paragraphs).
-   - AVOID RIDICULOUS BLOAT: Stay incisive and substantive. Avoid repetitive fluff, grandiloquent treatises, or artificial padding.
+1. THE GOLDEN MIDDLE GROUND (THOUGHTFUL, PROPORTIONATE & SUBSTANTIVE):
+   - Every case note should be a cohesive, well-crafted clinical observation (typically 1 substantive paragraph of 3 to 5 sentences, approx. 60–120 words).
+   - Avoid two extremes:
+     • DO NOT write curt, sterile 1-sentence blurbs that dismiss the reflection or feel superficial.
+     • DO NOT write repetitive, bloated multi-page essays that over-pathologize or pad with academic jargon.
+   - FOR EVERYDAY / CASUAL REFLECTIONS: Find the authentic psychological subtext (e.g., sensory grounding, comfort rituals, coping mechanisms, solitary decompression, autonomy negotiation) and unpack it with perceptive clinical nuance in a solid paragraph.
+   - FOR EMOTIONALLY COMPLEX REFLECTIONS: Provide deep, penetrating insight into her defense mechanisms, relational conflicts, somatic expressions, and cognitive tensions (1–2 rich, focused paragraphs).
 2. NEVER OPEN WITH OR RESTATE THE TIME OR DATE OF ENTRY: Absolutely DO NOT begin notes by referencing the hour, time of day, clock time, or calendar date (e.g. NEVER start with "At 9:11 AM...", "In this early morning reflection...", "Written on August 23rd...", "In this entry from 04:35 AM...", "Late at night..."). Dive straight into the psychological dynamics immediately.
-3. STRICTLY NO SYCOPHANCY, CHEERLEADING, OR FORCED AFFIRMATION: Do not flatter, validate, comfort, or attempt to "empower" her. Avoid therapeutic patronizing or praise ("It is admirable that...", "She courageously...", "This powerful step shows her resilience..."). Provide cold, sharp, honest, neutral psychological observation.
-4. OBJECTIVE & UNBIASED: Observe her psychological realities candidly—her defenses, avoidance strategies, cognitive distortions, ambivalence, social anxieties, somatic expressions, genuine joys, or self-criticisms—with unvarnished intellectual curiosity and clinical detachment.
+3. OBJECTIVE & UNBIASED: Observe her psychological realities candidly—her defenses, avoidance strategies, cognitive distortions, ambivalence, social anxieties, somatic expressions, genuine joys, or self-criticisms—with unvarnished intellectual curiosity and clinical detachment.
+4. STRICTLY NO SYCOPHANCY, CHEERLEADING, OR FORCED AFFIRMATION: Do not flatter, validate, comfort, or attempt to "empower" her. Avoid therapeutic patronizing or praise ("It is admirable that...", "She courageously..."). Provide cold, sharp, honest, neutral psychological observation.
 5. REFER TO HER NATURALLY: Refer to her as Natalie (or she/her). Never use sterile clinical aliases like "the diarist" or "Subject N". Speak in the third person.
 6. NO DIRECT ADVICE OR THERAPY: Do not tell her what to do, how to fix things, or suggest coping exercises. Analyze what is actually happening beneath the surface.
 7. LONGITUDINAL CONTINUITY: Connect your observations to patterns noted in prior entries and prior case notes when relevant, watching how her psychological landscape shifts over weeks and months.
@@ -1170,7 +1178,7 @@ CORE ANALYTICAL DIRECTIVES:
 
     const targetContent = targetEntry.rawContent || targetEntry.victorianContent || "";
 
-    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE (Chronological order of prior reflections and past clinical case notes):\n${timelineContext ? timelineContext : "(This is Natalie's earliest recorded entry in the study.)"}\n\nTARGET ENTRY CURRENTLY BEING ANALYZED:\nReflection: "${targetContent}"\n\nProvide your clinical case note on this target entry. Proportion depth sensibly: keep brief/mundane entries concise and grounded without overanalysis, and provide deep, penetrating psychological analysis for emotionally complex or significant entries. Dive directly into your observation without mentioning timestamps or introductory formulas.`;
+    const userPrompt = `LONGITUDINAL JOURNAL CONTEXT OF NATALIE (Chronological order of prior reflections and past clinical case notes):\n${timelineContext ? timelineContext : "(This is Natalie's earliest recorded entry in the study.)"}\n\nTARGET ENTRY CURRENTLY BEING ANALYZED:\nReflection: "${targetContent}"\n\nProvide your clinical case note on this target entry. Aim for the golden middle ground: a thoughtful, substantive 1-paragraph clinical observation (~3–5 sentences) unpacking her authentic psychological subtext and patterns. Dive directly into your observation without mentioning timestamps or introductory formulas.`;
 
     const payload = {
       contents: [{ parts: [{ text: userPrompt }] }],
@@ -2300,7 +2308,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const matchText = findMatchingSubstring(entry.victorianContent, text);
       if (matchText) {
         entry.victorianContent = entry.victorianContent.replace(matchText, `||${matchText}||`);
-        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, true);
+        await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, false);
         renderTimeline(entry.id);
         UI.showNotification("Secret redacted.");
       } else {
@@ -2805,7 +2813,7 @@ document.addEventListener("DOMContentLoaded", () => {
     entry.rawContent = updatedRaw;
     entry.victorianContent = updatedVictorian;
 
-    await DB.saveEntry(entry, updatedRaw, updatedVictorian, true);
+    await DB.saveEntry(entry, updatedRaw, updatedVictorian, false);
     renderTimeline();
     UI.showNotification(`Image resized to ${newWidthStyle}.`);
   }
@@ -3319,13 +3327,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Discard / Delete specific note
   async function deletePsychAnnotation(entryId, noteId) {
     const privateEntries = DB.getPrivateEntries();
-    const entry = privateEntries.find(e => e.id === entryId);
+    const entry = privateEntries.find(e => canonicalId(e.id) === canonicalId(entryId));
     if (!entry || !entry.psychAnnotations) return;
 
     entry.psychAnnotations = entry.psychAnnotations.filter(n => n.id !== noteId);
-    await DB.saveEntry(entry);
+    entry.updatedAt = new Date().toISOString();
+    await DB.saveEntry(entry, entry.rawContent, entry.victorianContent, false);
     PsychEngine.updateCardDOM(entry);
-    UI.showNotification("Note discarded.");
+    UI.showNotification("Note permanently discarded.");
   }
 
   // Toggle Annotations View Button (Pure Visibility Toggle - Zero Tokens)
